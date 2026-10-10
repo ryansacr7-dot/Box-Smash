@@ -1,0 +1,11 @@
+{
+  "appId": "com.ryan.boxsmash",
+  "appName": "Box Smash",
+  "webDir": "www",
+  "backgroundColor": "#7cc6ff",
+  "ios": {
+    "contentInset": "never",
+    "scrollEnabled": false,
+    "backgroundColor": "#7cc6ff"
+  }
+}
