@@ -62,6 +62,10 @@ button:focus-visible{outline:3px solid #fff;outline-offset:2px}
 .slot-info small{font-weight:800;font-size:.72rem;color:#8a5a3a;display:flex;align-items:center;gap:3px;flex-wrap:wrap}
 .slot-btns{display:flex;flex-direction:column;gap:6px}
 .sbtn{font-size:.85rem;padding:5px 10px;border-radius:10px}
+.code-hint{margin:0;background:#f3e8ff;border:2px solid #c9a6ff;border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:4px;font-weight:800;color:#4a1fa0;font-size:.88rem}
+.code-hint.open{display:block}
+.code-hint .pbar{margin-top:4px;border-color:#c9a6ff}
+.code-hint .pbar span{color:#fff}
 .diff-note{border-radius:12px;padding:8px;color:#fff}
 .diff-note.d1{background:#d93a2c}.diff-note.d2{background:#6b3fc7}
 #loading[data-diff="1"]{background:radial-gradient(circle at 50% 40%,#ff6a5a,#8e1318 70%)}
@@ -114,11 +118,16 @@ button:focus-visible{outline:3px solid #fff;outline-offset:2px}
 .day .tick{position:absolute;inset:0;display:grid;place-items:center;font-style:normal;font-size:2rem;color:var(--green);text-shadow:0 2px 0 #fff}
 /* minigames */
 .mini{z-index:8;display:flex;flex-direction:column;align-items:center;gap:10px;padding-inline:14px;padding-block:calc(12px + env(safe-area-inset-top,0px)) calc(16px + env(safe-area-inset-bottom,0px));background:linear-gradient(#5a3a1e,#2e1c0c);color:#fff;overflow-y:auto}
-.mini-head{width:100%;max-width:460px;display:flex;align-items:center;gap:8px;position:relative;padding-right:46px;min-height:40px}
+.mini-head{width:100%;max-width:460px;display:flex;align-items:center;gap:8px;position:relative;z-index:3;padding-right:46px;min-height:40px}
 .mini-head h2{margin:0;font-family:var(--font-display);font-weight:400;font-size:1.6rem;color:#ffd84a;text-shadow:0 3px 0 rgba(0,0,0,.35)}
 .mini-sub{font-weight:900;font-size:.8rem;opacity:.85}
-.mini-chip{margin-left:auto;background:rgba(0,0,0,.35);border-radius:999px;padding:4px 10px;font-weight:900;white-space:nowrap}
-.mini-x{right:0;top:0}
+.mini-chip{margin-left:auto;background:rgba(0,0,0,.35);border:2px solid rgba(255,255,255,.5);color:#fff;border-radius:999px;padding:4px 6px 4px 10px;font:900 .95rem var(--font-body);white-space:nowrap;cursor:pointer;display:flex;align-items:center;gap:4px}
+.mini-chip .plus{font-style:normal;width:20px;height:20px;border-radius:50%;background:var(--green);display:grid;place-items:center;font-size:1rem;line-height:1}
+.mini-back{width:min(320px,100%);font-size:1.1rem;padding:10px 16px;margin-top:4px;position:relative;z-index:3}
+.out-panel{display:flex;flex-direction:column;align-items:center;gap:6px;background:rgba(0,0,0,.35);border-radius:14px;padding:10px 14px;width:min(320px,100%)}
+.ways{display:flex;flex-direction:column;gap:4px;background:#fff;border-radius:14px;padding:10px;text-align:left;font-weight:800;font-size:.85rem}
+.ways b{font-weight:900}
+.mini-x{right:0;top:0;width:44px;height:44px;z-index:4}
 .mini-help{margin:0;font-weight:800;font-size:.85rem;text-align:center;opacity:.9;max-width:420px}
 .dig-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;width:min(420px,100%);aspect-ratio:1;max-width:100%}
 .dig-grid > *{border-radius:10px;display:grid;place-items:center;font-size:clamp(1.1rem,6vw,1.8rem)}
@@ -318,7 +327,6 @@ img{max-width:100%}
       <button class="widget" id="busWidget" aria-label="Bus Rush"><span class="w-ico" style="background:radial-gradient(circle at 40% 30%,#5fb0ff,#1f5fc2)"><svg viewBox="0 0 40 40"><rect x="6" y="9" width="28" height="21" rx="5" fill="#ffc21f" stroke="#7a4f00" stroke-width="2"/><rect x="10" y="13" width="9" height="7" rx="1.5" fill="#bfe8ff"/><rect x="21" y="13" width="9" height="7" rx="1.5" fill="#bfe8ff"/><circle cx="13" cy="31" r="3.5" fill="#222"/><circle cx="27" cy="31" r="3.5" fill="#222"/></svg><b class="w-count" id="busCount">0</b></span><span>BUS</span></button>
     </div>
     <div class="side-widgets">
-      <button class="widget" id="noAdsWidget" aria-label="No ads"><span class="w-ico"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="#fff"/><text x="20" y="25" text-anchor="middle" font-family="Titan One, sans-serif" font-size="13" fill="#2f8cff">ADS</text><path d="M8 8l24 24" stroke="#e0202a" stroke-width="4" stroke-linecap="round"/></svg></span><span>NO ADS</span></button>
       <button class="widget" id="bundleWidget" aria-label="Booster shop"><span class="w-ico"><svg viewBox="0 0 40 40"><rect x="7" y="16" width="26" height="18" rx="3" fill="#ffb21f" stroke="#7a4f00" stroke-width="2"/><rect x="5" y="11" width="30" height="7" rx="2" fill="#ff4d6d" stroke="#7a1020" stroke-width="2"/><rect x="18" y="11" width="4" height="23" fill="#fff"/></svg></span><span>BOOSTERS</span></button>
     </div>
     <div class="home-logo"><h1 class="logo-word"><span class="l1">BOX</span><span class="l2">SMASH</span></h1></div>
@@ -381,21 +389,24 @@ img{max-width:100%}
   <!-- TREASURE DIG -->
   <div id="digGame" class="layer mini" hidden>
     <div class="mini-head"><h2>Treasure Dig</h2><span class="mini-sub" id="digStage">Board 1</span>
-      <span class="mini-chip">&#x26CF;&#xFE0F; <b id="digShovels">0</b></span>
+      <button class="mini-chip" id="digAdd" aria-label="Get more shovels">&#x26CF;&#xFE0F; <b id="digShovels">0</b> <i class="plus">+</i></button>
       <button class="x-btn mini-x" id="digClose" aria-label="Close Treasure Dig"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <p class="mini-help">Each tile costs a shovel. Uncover every tile of a treasure to win it.</p>
     <div class="dig-grid" id="digGrid"></div>
     <div class="dig-list" id="digList"></div>
+    <div class="out-panel" id="digOut" hidden><b>Out of shovels!</b><button class="btn btn-gold" id="digGetMore">Get more shovels</button></div>
+    <button class="btn btn-blue mini-back" id="digBack">Back</button>
   </div>
 
   <!-- BUS RUSH -->
   <div id="busGame" class="layer mini bus-bg" hidden>
     <div class="mini-head"><h2>Bus Rush</h2><span class="mini-sub" id="busLvl">Level 1</span>
-      <span class="mini-chip">&#x1F3AB; <b id="busTickets">0</b></span>
+      <button class="mini-chip" id="busAdd" aria-label="Get more bus tickets">&#x1F3AB; <b id="busTickets">0</b> <i class="plus">+</i></button>
       <button class="x-btn mini-x" id="busClose" aria-label="Close Bus Rush"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div class="bus-queue" id="busQueue" aria-label="Passenger queue"></div>
     <div class="bus-station" id="busStation" aria-label="Station"></div>
     <div class="bus-lot" id="busLot" aria-label="Parking lot"></div>
+    <button class="btn btn-blue mini-back" id="busBack2">Back</button>
     <div class="bus-overlay" id="busOverlay" hidden></div>
   </div>
 
@@ -464,10 +475,11 @@ function readSlot(n){
 let SLOT = 1;
 try { SLOT = Math.min(SLOTS, Math.max(1, parseInt(localStorage.getItem('boxsmash.slot') || '1', 10) || 1)); } catch(e){}
 let S = readSlot(SLOT) || fresh();
+delete S.allUnlocked;   // left over from the removed SMASHEVER code
 function save(){ try { localStorage.setItem(slotKey(SLOT), JSON.stringify(S)); localStorage.setItem('boxsmash.slot', String(SLOT)); } catch(e){} }
 
 const MAX_LIVES = 5, LIFE_MS = 30 * 60 * 1000, BOMB_UNLOCK = 10;
-const bombLocked = () => S.level < BOMB_UNLOCK && !S.allUnlocked;
+const bombLocked = () => S.level < BOMB_UNLOCK;
 function tickLives(){
   if (S.lives >= MAX_LIVES){ S.lifeTs = Date.now(); return; }
   const n = Math.floor((Date.now() - S.lifeTs) / LIFE_MS);
@@ -1488,7 +1500,7 @@ function livesModal(){
 function settingsModal(){
   const row = (k, label) => `<div class="set-row" style="display:flex;justify-content:space-between;align-items:center;background:#fff;border-radius:14px;padding:10px 12px;font-weight:900">${label}<button class="btn ${S.set[k] ? 'btn-green' : 'btn-red'}" style="font-size:1rem;padding:6px 16px" data-k="${k}">${S.set[k] ? 'On' : 'Off'}</button></div>`;
   openModal('Settings', row('music', 'Music') + row('sound', 'Sound') + row('vib', 'Vibration') +
-    `<button class="btn btn-gold" data-slots style="font-size:1.1rem">Save Profiles</button><button class="btn btn-gold" data-backup style="font-size:1.1rem">Backup &amp; Restore</button><button class="btn btn-blue" data-code style="font-size:1.1rem">Redeem Code</button><p style="font-size:.8rem;color:#a07a5a">Box Smash has no ads, ever.</p>`, el => {
+    `<button class="btn btn-gold" data-slots style="font-size:1.1rem">Save Profiles</button><button class="btn btn-gold" data-backup style="font-size:1.1rem">Backup &amp; Restore</button><button class="btn btn-blue" data-code style="font-size:1.1rem">Redeem Code</button>`, el => {
     el.querySelectorAll('[data-k]').forEach(b => b.addEventListener('click', () => { toggleSetting(b.dataset.k); settingsModal(); }));
     el.querySelector('[data-code]').addEventListener('click', () => { click(); codeModal(); });
     el.querySelector('[data-slots]').addEventListener('click', () => { click(); slotsModal(); });
@@ -1597,7 +1609,6 @@ function backupModal(){
 function codeHash(s){ let x = 0x811c9dc5; for (const c of 'bx$' + s){ x ^= c.charCodeAt(0); x = Math.imul(x, 0x01000193) >>> 0; } return x.toString(36); }
 const CODES = {
   '1a299vu': { amount: true },   // SMASH10: type any coin amount, works every time
-  '1qewxir': { maxAll: true },   // SMASHEVER: unlocks and maxes everything (level stays the same)
 };
 function amountModal(){
   openModal('Add Coins', `<p>How many coins?</p>
@@ -1621,7 +1632,10 @@ function amountModal(){
   });
 }
 function codeModal(){
-  openModal('Redeem Code', `<p>Enter a secret code.</p>${S.codeRevealed ? `<p style="font-size:.85rem;color:#6b3fc7">Your level 200 code: <b style="letter-spacing:.08em">${secretCode()}</b></p>` : ''}
+  openModal('Redeem Code', `<p>Enter a secret code.</p>${S.codeRevealed
+      ? `<p class="code-hint open">\u{1F513} Your level 200 code: <b style="letter-spacing:.08em">${secretCode()}</b></p>`
+      : `<div class="code-hint"><b>\u{1F512} Secret code</b><span>Unlocks when you reach level ${SECRET_LEVEL}</span>
+         <div class="pbar"><i style="width:${Math.min(100, S.level / SECRET_LEVEL * 100)}%"></i><span>Level ${Math.min(S.level, SECRET_LEVEL)}/${SECRET_LEVEL}</span></div></div>`}
     <input id="codeInput" maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Secret code"
       style="border:3px solid var(--panel-edge);border-radius:12px;padding:12px;font:900 1.2rem var(--font-body);text-align:center;letter-spacing:.12em;text-transform:uppercase;color:var(--text);background:#fff;width:100%">
     <p id="codeMsg" style="min-height:1.4em;color:#d91e3a"></p>
@@ -1632,20 +1646,6 @@ function codeModal(){
       if (!code){ msg.textContent = 'Type a code first.'; return; }
       if (!c){ msg.textContent = 'That code doesn’t exist.'; tone(200, .15, .05, 'square'); return; }
       if (c.amount){ amountModal(); return; }
-      if (c.maxAll){
-        S.coins = 999999999;
-        for (const k in S.boosters) S.boosters[k] = 999;
-        S.owned.avatars = AVATARS.map((_, i) => i); S.owned.frames = FRAMES.map((_, i) => i);
-        S.lives = MAX_LIVES; S.lifeTs = Date.now();
-        S.allUnlocked = true;
-        save(); refreshTop(); renderBoosters();
-        tone(784, .14, .06, 'triangle'); setTimeout(() => tone(988, .14, .06, 'triangle'), 140); setTimeout(() => tone(1319, .4, .06, 'triangle'), 280);
-        confetti(140); buzz(100);
-        openModal('Everything Unlocked!', `<div class="big-num" style="font-size:2.4rem">MAXED</div>
-          <p>999,999,999 coins, 999 of every booster (Bomb included), every avatar and frame, and full lives.</p>
-          <button class="btn btn-green" data-ok>Let's go!</button>`, e2 => e2.querySelector('[data-ok]').addEventListener('click', closeModal));
-        return;
-      }
       if (S.codes.includes(h)){ msg.textContent = 'You already used this code.'; return; }
       c.give(); S.codes.push(h); save(); refreshTop(); renderBoosters();
       tone(784, .12, .06, 'triangle'); setTimeout(() => tone(1319, .25, .06, 'triangle'), 120); confetti(50); buzz(40);
@@ -1666,7 +1666,6 @@ $('homeGear').addEventListener('click', () => { click(); settingsModal(); });
 $('lifeChip').addEventListener('click', () => { click(); livesModal(); });
 $('coinChip').addEventListener('click', () => { click(); renderShop(); showOnly('shop'); });
 $('bundleWidget').addEventListener('click', () => { click(); renderShop(); showOnly('shop'); });
-$('noAdsWidget').addEventListener('click', () => { click(); openModal('No Ads', '<p>Box Smash has no ads at all. Everything is earned by playing.</p>'); });
 
 /* ---------- pre-level, loading, play ---------- */
 const TIPS = [
@@ -1840,7 +1839,7 @@ function renderShop(){
     <div class="card"><div class="av-grid">${AVATARS.map((_, i) => shopCos('av', i)).join('')}</div></div>
     <div class="section-title">Royal Frames</div>
     <div class="card"><div class="av-grid">${FRAMES.map((_, i) => shopCos('fr', i)).join('')}</div></div>
-    <p class="note">Coins are earned by clearing levels. No real money, no ads.</p>`;
+    <p class="note">Coins are earned by clearing levels, daily rewards and bonus games.</p>`;
   $('shopBody').querySelectorAll('[data-scos]').forEach(b => b.addEventListener('click', () => {
     const kind = b.dataset.scos, i = +b.dataset.i;
     if ((kind === 'av' ? S.owned.avatars : S.owned.frames).includes(i)){ toast('You own this. Equip it in your profile'); return; }
@@ -2045,6 +2044,7 @@ function renderDig(){
   const D = S.dig, owner = {};
   D.treasures.forEach((t, ti) => t.cells.forEach(i => owner[i] = ti));
   $('digShovels').textContent = S.shovels || 0;
+  $('digOut').hidden = (S.shovels || 0) > 0;
   $('digStage').textContent = 'Board ' + (D.stage + 1);
   $('digGrid').innerHTML = D.open.map((o, i) => {
     const ti = owner[i], t = ti != null ? D.treasures[ti] : null;
@@ -2057,7 +2057,7 @@ function renderDig(){
 }
 $('digGrid').addEventListener('click', e => {
   const b = e.target.closest('.dirt'); if (!b) return;
-  if (!(S.shovels > 0)){ SFX.error(); toast('No shovels left. Win levels or claim daily rewards'); return; }
+  if (!(S.shovels > 0)){ SFX.error(); getMoreModal('shovels'); return; }
   const i = +b.dataset.i, D = S.dig; if (D.open[i]) return;
   S.shovels--; D.open[i] = 1; SFX.dig(); buzz(12);
   const t = D.treasures.find(t => t.cells.includes(i));
@@ -2101,15 +2101,24 @@ function newBusLevel(L){
   return { L, cols, queue, slots: Array(BUS_SLOTS).fill(null), busy: false, over: false };
 }
 function openBus(){ $('busGame').hidden = false; SFX.open(); showBusIntro(); }
+const BUS_TICKET_PRICE = 150;
 function showBusIntro(){
   B = null; renderBus();
   $('busOverlay').hidden = false;
   $('busOverlay').innerHTML = `<div class="bus-card"><h3>Bus Rush</h3><p>Level ${(S.busLvl || 0) + 1}</p>
     <p class="bus-help">Tap the front bus of a lane to send it to the station. Passengers board the bus of their color. Don’t let the station fill up!</p>
-    <button class="btn btn-green" id="busPlay">${(S.tickets || 0) > 0 ? 'Play  \u{1F3AB} 1' : 'No tickets'}</button>
-    <small>You have ${S.tickets || 0} ticket${S.tickets === 1 ? '' : 's'}</small></div>`;
-  $('busPlay').addEventListener('click', () => {
-    if (!(S.tickets > 0)){ SFX.error(); toast('No bus tickets. Get them every 10 levels or from daily rewards'); return; }
+    ${(S.tickets || 0) > 0
+      ? `<button class="btn btn-green" id="busPlay">Play  \u{1F3AB} 1</button>`
+      : `<p class="bus-help" style="color:#d91e3a!important">You\u2019re out of tickets. Get more every 10 levels, from daily rewards, or buy one.</p>
+         <button class="btn btn-gold" id="busBuy">Get more tickets</button>`}
+    <small>You have ${S.tickets || 0} ticket${S.tickets === 1 ? '' : 's'} \u00b7 ${fmt(S.coins)} coins</small>
+    <button class="btn btn-blue" id="busBack">Back</button></div>`;
+  $('busBack').addEventListener('click', () => { $('busGame').hidden = true; refreshWidgets(); });
+  const buy = $('busBuy');
+  if (buy) buy.addEventListener('click', () => getMoreModal('tickets'));
+  const play = $('busPlay');
+  if (play) play.addEventListener('click', () => {
+    if (!(S.tickets > 0)){ SFX.error(); showBusIntro(); return; }
     S.tickets--; save(); refreshWidgets();
     B = newBusLevel(S.busLvl || 0); $('busOverlay').hidden = true; SFX.horn(); renderBus();
   });
@@ -2122,6 +2131,7 @@ function busHtml(b, cls = ''){
 function renderBus(){
   $('busTickets').textContent = S.tickets || 0;
   $('busLvl').textContent = 'Level ' + ((S.busLvl || 0) + 1);
+  $('busBack2').hidden = !B;   // the start card has its own Back button
   if (!B){ $('busQueue').innerHTML = ''; $('busStation').innerHTML = ''; $('busLot').innerHTML = ''; return; }
   const show = B.queue.slice(0, 12);
   $('busQueue').innerHTML = show.map(c => `<span class="pax" style="--pc:${busCol(c)}"></span>`).join('') + (B.queue.length > 12 ? `<span class="more">+${B.queue.length - 12}</span>` : '');
@@ -2176,6 +2186,37 @@ function busEnd(won){
   refreshWidgets();
 }
 $('busClose').addEventListener('click', () => { $('busGame').hidden = true; refreshWidgets(); });
+
+/* ---------- buy / earn more shovels and tickets ---------- */
+const PACKS = {
+  shovels: [{ n: 5, price: 200 }, { n: 15, price: 500 }],
+  tickets: [{ n: 1, price: 150 }, { n: 3, price: 400 }],
+};
+function getMoreModal(kind){
+  const isS = kind === 'shovels', icon = isS ? '⛏️' : '\u{1F3AB}', have = (isS ? S.shovels : S.tickets) || 0;
+  const ways = isS
+    ? ['\u{1F4C5} Daily rewards (days 2, 5 and 7)', '\u{1F3C6} +5 every 10 levels', '\u{1F68C} Some Bus Rush wins', '\u{1F451} Royal Chest treasures']
+    : ['\u{1F4C5} Daily rewards (days 3 and 6)', '\u{1F3C6} +2 every 10 levels', '\u{1F48E} Gem Stash treasures in Treasure Dig'];
+  openModal(isS ? 'Get Shovels' : 'Get Bus Tickets', `
+    <p>You have <b>${icon} ${have}</b> · \u{1FA99} ${fmt(S.coins)}</p>
+    ${PACKS[kind].map((pk, i) => `<button class="btn btn-green price" data-pack="${i}">${icon} ${pk.n} for \u{1FA99} ${fmt(pk.price)}</button>`).join('')}
+    <div class="ways"><b>Free ways to earn ${isS ? 'shovels' : 'tickets'}:</b>${ways.map(w => `<span>${w}</span>`).join('')}</div>`, el => {
+    el.querySelectorAll('[data-pack]').forEach(b => b.addEventListener('click', () => {
+      const pk = PACKS[kind][+b.dataset.pack];
+      if (S.coins < pk.price){ SFX.error(); toast('Not enough coins'); return; }
+      S.coins -= pk.price; if (isS) S.shovels = (S.shovels || 0) + pk.n; else S.tickets = (S.tickets || 0) + pk.n;
+      save(); refreshTop(); refreshWidgets(); SFX.claim(); toast(`+${pk.n} ${isS ? 'shovels' : 'tickets'}!`);
+      closeModal();
+      if (isS && !$('digGame').hidden) renderDig();
+      if (!isS && !$('busGame').hidden){ if (B && !B.over) renderBus(); else showBusIntro(); }
+    }));
+  });
+}
+$('digAdd').addEventListener('click', () => getMoreModal('shovels'));
+$('digGetMore').addEventListener('click', () => getMoreModal('shovels'));
+$('busAdd').addEventListener('click', () => getMoreModal('tickets'));
+$('digBack').addEventListener('click', () => { $('digGame').hidden = true; refreshWidgets(); });
+$('busBack2').addEventListener('click', () => { $('busGame').hidden = true; refreshWidgets(); });
 
 /* ---------- home widgets ---------- */
 function refreshWidgets(){
