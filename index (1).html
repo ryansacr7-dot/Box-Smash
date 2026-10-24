@@ -62,6 +62,10 @@ button:focus-visible{outline:3px solid #fff;outline-offset:2px}
 .slot-info small{font-weight:800;font-size:.72rem;color:#8a5a3a;display:flex;align-items:center;gap:3px;flex-wrap:wrap}
 .slot-btns{display:flex;flex-direction:column;gap:6px}
 .sbtn{font-size:.85rem;padding:5px 10px;border-radius:10px}
+.code-hint{margin:0;background:#f3e8ff;border:2px solid #c9a6ff;border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:4px;font-weight:800;color:#4a1fa0;font-size:.88rem}
+.code-hint.open{display:block}
+.code-hint .pbar{margin-top:4px;border-color:#c9a6ff}
+.code-hint .pbar span{color:#fff}
 .diff-note{border-radius:12px;padding:8px;color:#fff}
 .diff-note.d1{background:#d93a2c}.diff-note.d2{background:#6b3fc7}
 #loading[data-diff="1"]{background:radial-gradient(circle at 50% 40%,#ff6a5a,#8e1318 70%)}
@@ -471,10 +475,11 @@ function readSlot(n){
 let SLOT = 1;
 try { SLOT = Math.min(SLOTS, Math.max(1, parseInt(localStorage.getItem('boxsmash.slot') || '1', 10) || 1)); } catch(e){}
 let S = readSlot(SLOT) || fresh();
+delete S.allUnlocked;   // left over from the removed SMASHEVER code
 function save(){ try { localStorage.setItem(slotKey(SLOT), JSON.stringify(S)); localStorage.setItem('boxsmash.slot', String(SLOT)); } catch(e){} }
 
 const MAX_LIVES = 5, LIFE_MS = 30 * 60 * 1000, BOMB_UNLOCK = 10;
-const bombLocked = () => S.level < BOMB_UNLOCK && !S.allUnlocked;
+const bombLocked = () => S.level < BOMB_UNLOCK;
 function tickLives(){
   if (S.lives >= MAX_LIVES){ S.lifeTs = Date.now(); return; }
   const n = Math.floor((Date.now() - S.lifeTs) / LIFE_MS);
@@ -967,15 +972,36 @@ function targetAt(cx, cy){
   if (!p) return null;
   p.y = Math.max(.2, p.y); return p;
 }
-function solve(target){
+function solveT(target, T){
   let dir = target.clone().sub(PIVOT).normalize(), m0, v;
   for (let k = 0; k < 3; k++){
     m0 = PIVOT.clone().addScaledVector(dir, MUZZLE_LEN);
-    const d = target.clone().sub(m0), t = Math.max(.28, Math.min(.6, d.length() / 22));
-    v = d.sub(GV.clone().multiplyScalar(.5 * t * t)).divideScalar(t);
+    const t = T || Math.max(.28, Math.min(.6, target.clone().sub(m0).length() / 22));
+    v = target.clone().sub(m0).sub(GV.clone().multiplyScalar(.5 * t * t)).divideScalar(t);
     dir = v.clone().normalize();
   }
   return { m0, v, dir };
+}
+// Height of a shot as it passes the front edge of the table (null if it never reaches the edge).
+function edgeHeight(sol){
+  const edgeZ = PL.zc + PL.d / 2 + .1;
+  if (sol.v.z >= 0 || sol.m0.z <= edgeZ) return null;
+  const tau = (edgeZ - sol.m0.z) / sol.v.z;
+  return sol.m0.y + sol.v.y * tau + .5 * GV.y * tau * tau;
+}
+// Aim at the target; if a flat shot would hit the table's front edge (blocks lying at the back of
+// the table), lob it higher so it clears the edge and drops onto them.
+function solve(target){
+  const base = Math.max(.28, Math.min(.6, target.clone().sub(PIVOT).length() / 22));
+  const clear = PL.top + .35;
+  let sol = solveT(target, base);
+  if (target.z > PL.zc + PL.d / 2) return sol;           // target is in front of the table
+  for (let T = base; T <= 1.6; T += .04){
+    sol = solveT(target, T);
+    const h = edgeHeight(sol);
+    if (h === null || h >= clear) return sol;
+  }
+  return sol;
 }
 
 /* ---------- shooting ---------- */
@@ -1604,7 +1630,6 @@ function backupModal(){
 function codeHash(s){ let x = 0x811c9dc5; for (const c of 'bx$' + s){ x ^= c.charCodeAt(0); x = Math.imul(x, 0x01000193) >>> 0; } return x.toString(36); }
 const CODES = {
   '1a299vu': { amount: true },   // SMASH10: type any coin amount, works every time
-  '1qewxir': { maxAll: true },   // SMASHEVER: unlocks and maxes everything (level stays the same)
 };
 function amountModal(){
   openModal('Add Coins', `<p>How many coins?</p>
@@ -1628,7 +1653,10 @@ function amountModal(){
   });
 }
 function codeModal(){
-  openModal('Redeem Code', `<p>Enter a secret code.</p>${S.codeRevealed ? `<p style="font-size:.85rem;color:#6b3fc7">Your level 200 code: <b style="letter-spacing:.08em">${secretCode()}</b></p>` : ''}
+  openModal('Redeem Code', `<p>Enter a secret code.</p>${S.codeRevealed
+      ? `<p class="code-hint open">\u{1F513} Your level 200 code: <b style="letter-spacing:.08em">${secretCode()}</b></p>`
+      : `<div class="code-hint"><b>\u{1F512} Secret code</b><span>Unlocks when you reach level ${SECRET_LEVEL}</span>
+         <div class="pbar"><i style="width:${Math.min(100, S.level / SECRET_LEVEL * 100)}%"></i><span>Level ${Math.min(S.level, SECRET_LEVEL)}/${SECRET_LEVEL}</span></div></div>`}
     <input id="codeInput" maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Secret code"
       style="border:3px solid var(--panel-edge);border-radius:12px;padding:12px;font:900 1.2rem var(--font-body);text-align:center;letter-spacing:.12em;text-transform:uppercase;color:var(--text);background:#fff;width:100%">
     <p id="codeMsg" style="min-height:1.4em;color:#d91e3a"></p>
@@ -1639,20 +1667,6 @@ function codeModal(){
       if (!code){ msg.textContent = 'Type a code first.'; return; }
       if (!c){ msg.textContent = 'That code doesn’t exist.'; tone(200, .15, .05, 'square'); return; }
       if (c.amount){ amountModal(); return; }
-      if (c.maxAll){
-        S.coins = 999999999;
-        for (const k in S.boosters) S.boosters[k] = 999;
-        S.owned.avatars = AVATARS.map((_, i) => i); S.owned.frames = FRAMES.map((_, i) => i);
-        S.lives = MAX_LIVES; S.lifeTs = Date.now();
-        S.allUnlocked = true;
-        save(); refreshTop(); renderBoosters();
-        tone(784, .14, .06, 'triangle'); setTimeout(() => tone(988, .14, .06, 'triangle'), 140); setTimeout(() => tone(1319, .4, .06, 'triangle'), 280);
-        confetti(140); buzz(100);
-        openModal('Everything Unlocked!', `<div class="big-num" style="font-size:2.4rem">MAXED</div>
-          <p>999,999,999 coins, 999 of every booster (Bomb included), every avatar and frame, and full lives.</p>
-          <button class="btn btn-green" data-ok>Let's go!</button>`, e2 => e2.querySelector('[data-ok]').addEventListener('click', closeModal));
-        return;
-      }
       if (S.codes.includes(h)){ msg.textContent = 'You already used this code.'; return; }
       c.give(); S.codes.push(h); save(); refreshTop(); renderBoosters();
       tone(784, .12, .06, 'triangle'); setTimeout(() => tone(1319, .25, .06, 'triangle'), 120); confetti(50); buzz(40);
