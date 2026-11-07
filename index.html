@@ -523,7 +523,7 @@ const DEFAULT = {
   profile: { name: 'Player', avatar: 0, frame: 0 },
   owned: { avatars: [0, 1], frames: [0] },
   stats: { won: 0, firstTry: 0, streak: 0, best: 0 },
-  fails: {}, seenHint: false, codes: [],
+  fails: {}, seenHint: false, codes: [], smashLast: 0,
   shovels: 5, tickets: 1, daily: { next: 0, last: '' }, dig: null, busLvl: 0,
 };
 const fresh = () => JSON.parse(JSON.stringify(Object.assign({}, DEFAULT, { lifeTs: Date.now() })));
@@ -1560,10 +1560,16 @@ function hudBalls(){
   $('ballsCard').classList.toggle('low', G.balls <= 3 && !endless);
 }
 function fmt(n){ return n.toLocaleString('en-US'); }
+// coin counters: exact up to 9,999,999, then short (12.3M, 4.56B, 1.2T) so huge amounts still fit
+function fmtShort(n){
+  if (n < 1e7) return fmt(n);
+  const u = [[1e15, 'Q'], [1e12, 'T'], [1e9, 'B'], [1e6, 'M']].find(([v]) => n >= v), x = n / u[0];
+  return (x >= 100 ? Math.floor(x) : Math.floor(x * 10) / 10).toLocaleString('en-US') + u[1];
+}
 function refreshTop(){
   tickLives();
-  $('coinTxt').textContent = fmt(S.coins);
-  document.querySelectorAll('.coinTxt2').forEach(e => e.textContent = fmt(S.coins));
+  $('coinTxt').textContent = fmtShort(S.coins);
+  document.querySelectorAll('.coinTxt2').forEach(e => e.textContent = fmtShort(S.coins));
   $('lifeNum').textContent = S.lives;
   if (S.lives >= MAX_LIVES) $('lifeTxt').textContent = 'FULL';
   else { const ms = LIFE_MS - (Date.now() - S.lifeTs), m = Math.max(0, Math.floor(ms / 60000)), s = Math.max(0, Math.floor(ms / 1000) % 60); $('lifeTxt').textContent = `${m}:${String(s).padStart(2, '0')}`; }
@@ -1777,11 +1783,24 @@ function backupModal(){
 /* ---------- redeem codes ---------- */
 const SECRET_CODE = 'SMASH10';   // shown to the player at level 200 and on the Redeem Code page
 const CODES = {
-  [SECRET_CODE]: { amount: true },   // type any coin amount, works every time
+  [SECRET_CODE]: { amount: true },   // pick a coin amount, up to SECRET_MAX, once a week, after level 200
 };
+const SECRET_MAX = 100000;                       // most coins one use of SMASH10 can give
+const SMASH_TEST = true;                         // true = testing only: turns off the weekly timer, level 200 lock and 100k max
+const SECRET_COOLDOWN = SMASH_TEST ? 0 : 7 * 24 * 60 * 60 * 1000; // SMASH10 can be used once every 7 days
+function smashWait(){                            // ms until SMASH10 can be used again (0 = ready)
+  const now = Date.now();
+  if ((S.smashLast || 0) > now) S.smashLast = now; // device clock went backwards: count the week from now
+  return Math.max(0, (S.smashLast || 0) + SECRET_COOLDOWN - now);
+}
+function fmtWait(ms){
+  const h = Math.ceil(ms / 3600000), d = Math.floor(h / 24), r = h % 24;
+  return d ? `${d} day${d > 1 ? 's' : ''}${r ? ` ${r} hour${r > 1 ? 's' : ''}` : ''}` : `${h} hour${h > 1 ? 's' : ''}`;
+}
 function amountModal(){
   openModal('Add Coins', `<p>How many coins?</p>
-    <input id="amtInput" type="number" inputmode="numeric" min="1" max="999999999" placeholder="0" aria-label="Coin amount"
+    <p style="font-size:.85rem;color:#a07a5a;margin-top:-4px">Up to ${fmt(SECRET_MAX)} coins. SMASH10 can be used once every 7 days.</p>
+    <input id="amtInput" type="number" inputmode="numeric" min="1" max="${SECRET_MAX}" placeholder="0" aria-label="Coin amount"
       style="border:3px solid var(--panel-edge);border-radius:12px;padding:12px;font:900 1.4rem var(--font-body);text-align:center;color:var(--text);background:#fff;width:100%">
     <p id="amtMsg" style="min-height:1.4em;color:#d91e3a"></p>
     <button class="btn btn-green" data-add>Add Coins</button>`, el => {
@@ -1789,8 +1808,10 @@ function amountModal(){
     const add = () => {
       const n = Math.floor(Number(inp.value));
       if (!n || n < 1){ msg.textContent = 'Enter an amount above 0.'; return; }
-      const amt = Math.min(n, 999999999), before = S.coins;
-      S.coins = Math.min(999999999, S.coins + amt); save(); refreshTop();
+      if (!SMASH_TEST && n > SECRET_MAX){ msg.textContent = `The most you can add is ${fmt(SECRET_MAX)} coins.`; tone(200, .15, .05, 'square'); return; }
+      if ((!SMASH_TEST && S.level < SECRET_LEVEL) || smashWait() > 0){ closeModal(); return; }
+      const before = S.coins;
+      S.coins = S.coins + n; S.smashLast = Date.now(); save(); refreshTop();
       tone(784, .12, .06, 'triangle'); setTimeout(() => tone(1319, .25, .06, 'triangle'), 120); confetti(50); buzz(40);
       openModal('Coins Added!', `<div class="big-num" style="font-size:2rem">+${fmt(S.coins - before)}</div><p>You now have ${fmt(S.coins)} coins.</p><button class="btn btn-green" data-ok>Nice!</button>`,
         e2 => e2.querySelector('[data-ok]').addEventListener('click', closeModal));
@@ -1802,7 +1823,8 @@ function amountModal(){
 }
 function codeModal(){
   openModal('Redeem Code', `<p>Enter a secret code.</p>${S.codeRevealed
-      ? `<p class="code-hint open">\u{1F513} Your level 200 code: <b style="letter-spacing:.08em">${secretCode()}</b></p>`
+      ? `<p class="code-hint open">\u{1F513} Your level 200 code: <b style="letter-spacing:.08em">${secretCode()}</b><br>
+           <small>Up to ${fmt(SECRET_MAX)} coins, once a week. ${smashWait() ? `Ready again in ${fmtWait(smashWait())}.` : 'Ready to use now!'}</small></p>`
       : `<div class="code-hint"><b>\u{1F512} Secret code</b><span>Unlocks when you reach level ${SECRET_LEVEL}</span>
          <div class="pbar"><i style="width:${Math.min(100, S.level / SECRET_LEVEL * 100)}%"></i><span>Level ${Math.min(S.level, SECRET_LEVEL)}/${SECRET_LEVEL}</span></div></div>`}
     <input id="codeInput" maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Secret code"
@@ -1814,7 +1836,12 @@ function codeModal(){
       const code = inp.value.trim().toUpperCase().replace(/\s+/g, ''), c = CODES[code];
       if (!code){ msg.textContent = 'Type a code first.'; return; }
       if (!c){ msg.textContent = 'That code doesn’t exist.'; tone(200, .15, .05, 'square'); return; }
-      if (c.amount){ amountModal(); return; }
+      if (c.amount){
+        if (!SMASH_TEST && S.level < SECRET_LEVEL){ msg.textContent = `This code unlocks at level ${SECRET_LEVEL}.`; tone(200, .15, .05, 'square'); return; }
+        const w = smashWait();
+        if (w){ msg.textContent = `Already used this week. Ready again in ${fmtWait(w)}.`; tone(200, .15, .05, 'square'); return; }
+        amountModal(); return;
+      }
       if (S.codes.includes(code)){ msg.textContent = 'You already used this code.'; return; }
       c.give(); S.codes.push(code); save(); refreshTop(); renderBoosters();
       tone(784, .12, .06, 'triangle'); setTimeout(() => tone(1319, .25, .06, 'triangle'), 120); confetti(50); buzz(40);
@@ -2025,7 +2052,7 @@ function secretReveal(){
   confetti(120); buzz(80);
   openModal('Code Unlocked!', `<p class="diff-note d2" style="font-weight:900">\u26a0 You reached level 200 and unlocked a secret code!</p>
     <div class="big-num" style="font-size:2.4rem;letter-spacing:.08em;background:#fff;border-radius:14px;padding:10px;user-select:text;-webkit-user-select:text">${secretCode()}</div>
-    <p style="font-size:.85rem;color:#a07a5a">Enter it in Settings → Redeem Code. You can find it there again any time.</p>
+    <p style="font-size:.85rem;color:#a07a5a">Enter it in Settings → Redeem Code to add up to ${fmt(SECRET_MAX)} coins, once every 7 days. You can find it there again any time.</p>
     <button class="btn btn-green" data-ok>Awesome!</button>`, el => el.querySelector('[data-ok]').addEventListener('click', closeModal));
 }
 
