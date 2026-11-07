@@ -192,6 +192,14 @@ button:focus-visible{outline:3px solid #fff;outline-offset:2px}
 .tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:rgba(0,0,0,.25);border-radius:14px;padding:4px}
 .tab{border:0;border-radius:10px;padding:8px;font-weight:900;font-size:1rem;background:transparent;color:#ffd9de;cursor:pointer}
 .tab[aria-selected="true"]{background:linear-gradient(#ffe07a,#ffb21f);color:#5a2a00}
+.tabs6{grid-template-columns:repeat(3,1fr)}
+.tabs6 .tab{font-size:.88rem;padding:7px 4px}
+.prof-hero{display:grid;place-items:center;padding:6px 0 2px}
+.prof-hero .avatar svg{width:64px;height:64px}
+.cos-name{font-weight:800;font-size:.62rem;color:#8a6a4a;margin-top:-4px;white-space:nowrap}
+@keyframes frRainbow{0%{border-color:#ff5d73;box-shadow:0 0 0 3px #ffb21f,0 0 14px #ff5d73}25%{border-color:#ffe14d;box-shadow:0 0 0 3px #5fe05f,0 0 14px #ffe14d}50%{border-color:#4fb3ff;box-shadow:0 0 0 3px #a364ef,0 0 14px #4fb3ff}75%{border-color:#a364ef;box-shadow:0 0 0 3px #ff5d73,0 0 14px #a364ef}100%{border-color:#ff5d73;box-shadow:0 0 0 3px #ffb21f,0 0 14px #ff5d73}}
+@keyframes frPulse{0%,100%{box-shadow:0 0 0 3px #ffb21f,0 0 0 6px #fff3a8,0 0 14px #ffd84a}50%{box-shadow:0 0 0 3px #ffb21f,0 0 0 7px #fff3a8,0 0 30px #ffd84a,0 0 44px #ff9a1f}}
+@media (prefers-reduced-motion:reduce){.avatar{animation:none!important}}
 .lb-row{display:grid;grid-template-columns:34px 40px 1fr auto;align-items:center;gap:8px;background:var(--panel);border:3px solid var(--panel-edge);border-radius:16px;padding:6px 10px 6px 6px;color:var(--text);font-weight:900}
 .lb-row .rank{width:30px;height:30px;border-radius:50%;background:#d9b37a;display:grid;place-items:center;color:#fff;font-size:.85rem}
 .lb-row .avatar{width:38px;height:38px;border-width:2px}
@@ -211,7 +219,8 @@ button:focus-visible{outline:3px solid #fff;outline-offset:2px}
 .av-grid .avatar[aria-pressed="true"]{outline:4px solid var(--green);outline-offset:2px}
 .cos-cell{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
 .cos-cell .avatar{position:relative}
-.cos-locked svg:first-child{filter:grayscale(.7) brightness(.85)}
+.cos-locked svg:first-child{filter:grayscale(.3) brightness(.95);opacity:.85}
+.av-grid .avatar svg{width:42px;height:42px}
 .cos-lock{position:absolute;right:-6px;bottom:-6px;width:24px;height:24px}
 .cos-lock svg{width:24px;height:24px}
 .cos-price{display:flex;align-items:center;gap:3px;font-weight:900;font-size:.68rem;color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -520,8 +529,8 @@ const DEFAULT = {
   level: 0, coins: 200, lives: 5, lifeTs: 0,
   boosters: { inf: 2, big: 2, wand: 3, bomb: 0 },
   set: { music: true, sound: true, vib: true, boxVoice: true, boxPreset: 'classic', boxCustom: null },
-  profile: { name: 'Player', avatar: 0, frame: 0 },
-  owned: { avatars: [0, 1], frames: [0] },
+  profile: { name: 'Player', avatar: 0, frame: 0, char: 0, face: 0, hat: 0, bg: 0 },
+  owned: { avatars: [0, 1], frames: [0], chars: [0], faces: [0], hats: [0, 1], bgs: [0] },
   stats: { won: 0, firstTry: 0, streak: 0, best: 0 },
   fails: {}, seenHint: false, codes: [], smashLast: 0,
   shovels: 5, tickets: 1, daily: { next: 0, last: '' }, dig: null, busLvl: 0,
@@ -534,7 +543,7 @@ function readSlot(n){
   const d = Object.assign(fresh(), raw);
   d.boosters = Object.assign({}, DEFAULT.boosters, d.boosters); d.set = Object.assign({}, DEFAULT.set, d.set);
   d.profile = Object.assign({}, DEFAULT.profile, d.profile); d.stats = Object.assign({}, DEFAULT.stats, d.stats);
-  d.owned = Object.assign({ avatars: [0, 1], frames: [0] }, d.owned);
+  d.owned = Object.assign({}, DEFAULT.owned, d.owned);
   if (!d.owned.avatars.includes(d.profile.avatar)) d.owned.avatars.push(d.profile.avatar);
   return d;
 }
@@ -1576,50 +1585,129 @@ function refreshTop(){
   const d = difficulty(S.level);
   $('levelBtn').className = 'btn ' + ['btn-green', 'btn-red', 'btn-purple'][d];
   $('levelBtn').innerHTML = (d ? `<small class="diff-tag">${d === 2 ? '\u2620 ' : ''}${DIFF[d].name}</small>` : '') + 'Level ' + (S.level + 1);
-  $('avatarBtn').innerHTML = avatarSvg(S.profile.avatar); $('avatarBtn').setAttribute('style', avStyle(S.profile.avatar, S.profile.frame));
+  $('avatarBtn').innerHTML = avatarSvg(S.profile); $('avatarBtn').setAttribute('style', avStyle(S.profile));
 }
 setInterval(() => { if (mode === 'home') refreshTop(); }, 1000);
 
-const AVATARS = [
+/* ---------- player look: character, color, face, hat, background, frame ----------
+   Every part is its own collection; prices are in coins only (earned by playing). */
+const AVATARS = [   // colors (index kept as profile.avatar for old saves)
   { bg: '#ff8fa3', fg: '#ff4fa8' }, { bg: '#7cc6ff', fg: '#2f6fe8' }, { bg: '#ffd34d', fg: '#ff8a1f' }, { bg: '#9cf27a', fg: '#2c8a16' },
   { bg: '#c9a6ff', fg: '#6b3fc7' }, { bg: '#ffb36b', fg: '#d9223a' }, { bg: '#8ff0e0', fg: '#1a8f80' }, { bg: '#ffe6a8', fg: '#c98a12' },
+  { bg: '#ff9db0', fg: '#b3123a' }, { bg: '#7fe0ff', fg: '#0f6aa8' }, { bg: '#e9f1ff', fg: '#7d93c2' }, { bg: '#7b80c9', fg: '#23264d' },
 ];
-// cosmetics: steep coin prices on purpose, since coins are only earned by playing
 const AV_INFO = [
   { name: 'Rosy', price: 0 }, { name: 'Sky', price: 0 }, { name: 'Sunny', price: 1000 }, { name: 'Leafy', price: 1500 },
   { name: 'Violet', price: 2500 }, { name: 'Blaze', price: 3500 }, { name: 'Mint', price: 5000 }, { name: 'Goldie', price: 8000 },
+  { name: 'Cherry', price: 4000 }, { name: 'Ocean', price: 4500 }, { name: 'Snow', price: 6000 }, { name: 'Midnight', price: 9000 },
+];
+const CHARS = [
+  { name: 'Ball', price: 0 }, { name: 'Box', price: 2000 }, { name: 'Bomb', price: 3500 }, { name: 'Cat', price: 5000 },
+  { name: 'Robot', price: 7000 }, { name: 'Ghost', price: 8000 }, { name: 'Alien', price: 10000 }, { name: 'Slime', price: 12000 },
+];
+const FACES = [
+  { name: 'Happy', price: 0 }, { name: 'Cool', price: 1500 }, { name: 'Wink', price: 1000 }, { name: 'Grumpy', price: 1200 },
+  { name: 'Shocked', price: 1500 }, { name: 'Silly', price: 2000 }, { name: 'In Love', price: 3000 }, { name: 'Sleepy', price: 2500 },
+];
+const HATS = [
+  { name: 'Crown', price: 0 }, { name: 'No Hat', price: 0 }, { name: 'Party', price: 1500 }, { name: 'Cap', price: 2000 },
+  { name: 'Bow', price: 2500 }, { name: 'Headphones', price: 4000 }, { name: 'Top Hat', price: 6000 }, { name: 'Horns', price: 7000 },
+  { name: 'Halo', price: 9000 }, { name: 'Wizard', price: 15000 },
+];
+const BGS = [
+  { name: 'Plain', price: 0, css: c => c }, 
+  { name: 'Dots', price: 800, css: c => `radial-gradient(rgba(255,255,255,.45) 22%, transparent 25%) 0 0/9px 9px, ${c}` },
+  { name: 'Stripes', price: 1200, css: c => `repeating-linear-gradient(45deg, rgba(255,255,255,.32) 0 4px, transparent 4px 9px), ${c}` },
+  { name: 'Checks', price: 1800, css: c => `conic-gradient(rgba(255,255,255,.35) 25%, transparent 0 50%, rgba(255,255,255,.35) 0 75%, transparent 0) 0 0/12px 12px, ${c}` },
+  { name: 'Sunburst', price: 3000, css: c => `repeating-conic-gradient(rgba(255,255,255,.35) 0 12deg, transparent 12deg 24deg), ${c}` },
+  { name: 'Sunset', price: 5000, css: () => 'linear-gradient(#ffd25a, #ff7a59 45%, #c13fa3)' },
+  { name: 'Ocean', price: 5000, css: () => 'linear-gradient(#9ff0ff, #2f9be8 55%, #1a4fb0)' },
+  { name: 'Galaxy', price: 9000, css: () => 'radial-gradient(#fff 6%, transparent 9%) 3px 4px/13px 11px, radial-gradient(#ffe7a6 5%, transparent 8%) 9px 9px/17px 15px, radial-gradient(circle at 30% 30%, #6b3fc7, #1b0f45 70%)' },
+  { name: 'Rainbow', price: 12000, css: () => 'linear-gradient(135deg, #ff5d73, #ffb21f, #ffe14d, #5fe05f, #4fb3ff, #a364ef)' },
 ];
 const FRAMES = [
   { name: 'Classic', price: 0, border: '#ffffff', glow: '0 3px 0 rgba(0,0,0,.25)' },
   { name: 'Gold', price: 1500, border: '#ffc83d', glow: '0 0 0 3px #c98a12' },
   { name: 'Ruby', price: 3000, border: '#ff3b5c', glow: '0 0 0 3px #8e1330,0 0 10px #ff3b5c' },
   { name: 'Emerald', price: 5000, border: '#3fcf6a', glow: '0 0 0 3px #1a7a3a,0 0 12px #3fcf6a' },
+  { name: 'Neon', price: 6000, border: '#5dffa8', glow: '0 0 0 3px #0a6b3a,0 0 12px #39ff88,0 0 22px #39ff88' },
   { name: 'Diamond', price: 8000, border: '#d8f8ff', glow: '0 0 0 3px #5ad1ff,0 0 16px #bff4ff' },
+  { name: 'Ice', price: 10000, border: '#ffffff', glow: '0 0 0 3px #7fd8ff,0 0 0 6px #e6fbff,0 0 16px #9be7ff' },
+  { name: 'Fire', price: 10000, border: '#ffd23f', glow: '0 0 0 3px #ff5a1f,0 0 12px #ff7a1f,0 -5px 18px #ff3b1f' },
   { name: 'Royal', price: 15000, border: '#ffd84a', glow: '0 0 0 3px #a364ef,0 0 0 6px #ffd84a,0 0 20px #ffd84a' },
+  { name: 'Galaxy', price: 20000, border: '#d9c2ff', glow: '0 0 0 3px #3a1a7a,0 0 14px #a364ef,0 0 26px #5a2bd6' },
+  { name: 'Rainbow', price: 30000, border: '#ff5d73', glow: '0 0 0 3px #ffb21f,0 0 14px #ff5d73', anim: 'frRainbow 2.4s linear infinite' },
+  { name: 'Legend', price: 50000, border: '#fff3a8', glow: '0 0 0 3px #ffb21f,0 0 0 6px #fff3a8,0 0 22px #ffd84a', anim: 'frPulse 1.6s ease-in-out infinite' },
 ];
-function avStyle(a, f){ const fr = FRAMES[f] || FRAMES[0]; return `--av:${AVATARS[a].bg};border-color:${fr.border};box-shadow:${fr.glow}`; }
-function buyCosmetic(kind, i, done){
-  const item = kind === 'av' ? AV_INFO[i] : FRAMES[i], list = kind === 'av' ? S.owned.avatars : S.owned.frames;
-  const preview = kind === 'av'
-    ? `<span class="avatar" style="${avStyle(i, S.profile.frame)};width:84px;height:84px;margin:0 auto">${avatarSvg(i)}</span>`
-    : `<span class="avatar" style="${avStyle(S.profile.avatar, i)};width:84px;height:84px;margin:0 auto">${avatarSvg(S.profile.avatar)}</span>`;
+// the six parts, in the order the tabs show them; the key is the field in profile
+const COS = {
+  char:   { tab: 'Character', own: 'chars',   items: CHARS },
+  avatar: { tab: 'Color',     own: 'avatars', items: AV_INFO },
+  face:   { tab: 'Face',      own: 'faces',   items: FACES },
+  hat:    { tab: 'Hat',       own: 'hats',    items: HATS },
+  bg:     { tab: 'Background', own: 'bgs',    items: BGS },
+  frame:  { tab: 'Frame',     own: 'frames',  items: FRAMES },
+};
+const COS_KEYS = Object.keys(COS);
+const lookOf = p => { const l = {}; COS_KEYS.forEach(k => { const v = p && p[k]; l[k] = COS[k].items[v] ? v : 0; }); return l; };
+const ownsCos = (cat, i) => S.owned[COS[cat].own].includes(i);
+function avStyle(look){
+  const l = lookOf(look), fr = FRAMES[l.frame], col = AVATARS[l.avatar].bg;
+  return `--av:${col};background:${BGS[l.bg].css(col)};border-color:${fr.border};box-shadow:${fr.glow}${fr.anim ? ';animation:' + fr.anim : ''}`;
+}
+function avatarSvg(look){
+  const l = lookOf(look), fg = AVATARS[l.avatar].fg, W = 'stroke="#fff" stroke-width="2"';
+  const body = [
+    `<circle cx="20" cy="23" r="13" fill="${fg}" ${W}/>`,
+    `<rect x="7.5" y="10.5" width="25" height="25" rx="5" fill="${fg}" ${W}/><path d="M9 16h22" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>`,
+    `<path d="M27 12q3-4 6-3" stroke="#6b4a2a" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M33 9l1.5-3 .3 3.2 3-1-2.6 2 2.6 1.5-3.2-.4" fill="#ffc83d"/><circle cx="20" cy="23" r="13" fill="${fg}" ${W}/><rect x="24" y="10" width="6" height="4" rx="1" fill="#555" transform="rotate(30 27 12)"/><circle cx="14" cy="17" r="3" fill="rgba(255,255,255,.3)"/>`,
+    `<path d="M8 17L9 5l9 7zM32 17L31 5l-9 7z" fill="${fg}" ${W} stroke-linejoin="round"/><path d="M10.5 13l.5-5 4 3zM29.5 13l-.5-5-4 3z" fill="#ffb3c8"/><circle cx="20" cy="23" r="13" fill="${fg}" ${W}/><path d="M7 25l-5-1M7 28l-5 1.5M33 25l5-1M33 28l5 1.5" stroke="#fff" stroke-width="1.2" stroke-linecap="round"/>`,
+    `<rect x="4" y="19" width="4" height="8" rx="1.5" fill="#bfc8d8" stroke="#fff" stroke-width="1.2"/><rect x="32" y="19" width="4" height="8" rx="1.5" fill="#bfc8d8" stroke="#fff" stroke-width="1.2"/><rect x="7.5" y="11" width="25" height="24" rx="7" fill="${fg}" ${W}/><rect x="12" y="17" width="16" height="9" rx="3" fill="rgba(0,0,0,.18)"/>`,
+    `<path d="M7 36V22a13 13 0 0 1 26 0v14l-4.3-3-4.3 3-4.4-3-4.3 3-4.4-3z" fill="${fg}" ${W} stroke-linejoin="round"/>`,
+    `<path d="M11 13L7 6M29 13l4-7" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/><circle cx="7" cy="6" r="2" fill="#7dff8a"/><circle cx="33" cy="6" r="2" fill="#7dff8a"/><ellipse cx="20" cy="23" rx="15.5" ry="12.5" fill="${fg}" ${W}/>`,
+    `<path d="M5 34q0-21 15-23 15 2 15 23z" fill="${fg}" ${W} stroke-linejoin="round"/><circle cx="12" cy="18" r="2.2" fill="rgba(255,255,255,.4)"/><path d="M9 34q2-4 5 0" fill="${fg}"/>`,
+  ][l.char];
+  const E = (x, y) => `<circle cx="${x}" cy="${y}" r="2.4" fill="#fff"/><circle cx="${x + .5}" cy="${y + .5}" r="1.2" fill="#222"/>`;
+  const face = [
+    `${E(15.5, 21)}${E(24.5, 21)}<path d="M15 27q5 4 10 0" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+    `<path d="M10.5 19h19v1.5l-1.6 3.8h-5.5l-1.7-3.3h-1.4l-1.7 3.3h-5.5l-1.6-3.8z" fill="#111" stroke="#111" stroke-width=".8" stroke-linejoin="round"/><path d="M12.5 20.5l2 2" stroke="rgba(255,255,255,.5)" stroke-width="1"/><path d="M16 28q5 2.5 9-1" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+    `${E(15.5, 21)}<path d="M22 21.5q2.5-2.5 5 0" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M15 27q5 4 10 0" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+    `${E(15.5, 22)}${E(24.5, 22)}<path d="M12 17.5l6 2.5M28 17.5l-6 2.5" stroke="#222" stroke-width="2" stroke-linecap="round"/><path d="M15.5 29q4.5-3.5 9 0" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+    `<circle cx="15" cy="20.5" r="3.4" fill="#fff"/><circle cx="25" cy="20.5" r="3.4" fill="#fff"/><circle cx="15" cy="20.5" r="1.3" fill="#222"/><circle cx="25" cy="20.5" r="1.3" fill="#222"/><ellipse cx="20" cy="28.5" rx="2.6" ry="3.2" fill="#3a0a14" stroke="#fff" stroke-width="1.4"/>`,
+    `<path d="M13 21q2.5-2.5 5 0M22 21q2.5-2.5 5 0" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M14 26.5h12q-1 4-6 4t-6-4z" fill="#3a0a14" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/><path d="M19 28.5h5v3.5a2.5 2.5 0 0 1-5 0z" fill="#ff6b8b"/>`,
+    `<path d="M15.5 24l-3.2-3a1.9 1.9 0 0 1 3.2-2 1.9 1.9 0 0 1 3.2 2zM24.5 24l-3.2-3a1.9 1.9 0 0 1 3.2-2 1.9 1.9 0 0 1 3.2 2z" fill="#ff3b6b" stroke="#fff" stroke-width=".8"/><path d="M15 27q5 4.5 10 0" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+    `<path d="M13 21.5q2.5 2 5 0M22 21.5q2.5 2 5 0" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/><ellipse cx="20" cy="28" rx="1.8" ry="1.4" fill="#fff"/><path d="M28 12h3l-3 3h3M32.5 7h2l-2 2h2" stroke="#fff" stroke-width="1.2" fill="none" stroke-linejoin="round"/>`,
+  ][l.face];
+  const hat = [
+    `<path d="M12 11l3 4 5-6 5 6 3-4v5H12z" fill="#ffc83d" stroke="#7a4f00" stroke-width="1.4" stroke-linejoin="round"/>`,
+    '',
+    `<path d="M14 13L20 1l6 12z" fill="#ff5d9e" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"/><path d="M16.5 8l6 2M15 11.5l9 1.5" stroke="#ffe14d" stroke-width="1.6"/><circle cx="20" cy="1.6" r="1.8" fill="#ffe14d"/>`,
+    `<path d="M9.5 15a10.5 9 0 0 1 21 0z" fill="#2f6fe8" stroke="#fff" stroke-width="1.3"/><path d="M20 15h14q0 2.6-4 2.6H20z" fill="#1f4fb0" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/><circle cx="20" cy="6.4" r="1.3" fill="#fff"/>`,
+    `<path d="M20 10l-8-5v10zM20 10l8-5v10z" fill="#ff4f8b" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"/><circle cx="20" cy="10" r="2.4" fill="#ff7aa8" stroke="#fff" stroke-width="1.2"/>`,
+    `<path d="M6.5 23a13.5 13.5 0 0 1 27 0" stroke="#333" stroke-width="2.6" fill="none"/><rect x="3" y="20" width="6" height="10" rx="2.5" fill="#ff4a4a" stroke="#fff" stroke-width="1.2"/><rect x="31" y="20" width="6" height="10" rx="2.5" fill="#ff4a4a" stroke="#fff" stroke-width="1.2"/>`,
+    `<rect x="13" y="1" width="14" height="12" rx="1.5" fill="#222" stroke="#fff" stroke-width="1.2"/><rect x="13" y="9" width="14" height="2.6" fill="#e0263a"/><rect x="9" y="12" width="22" height="3" rx="1.5" fill="#222" stroke="#fff" stroke-width="1.2"/>`,
+    `<path d="M11 14q-4-5 0-11 1 6 6 8zM29 14q4-5 0-11-1 6-6 8z" fill="#e0263a" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"/>`,
+    `<ellipse cx="20" cy="5.5" rx="9" ry="2.8" fill="none" stroke="#ffe14d" stroke-width="2.4"/><ellipse cx="20" cy="5.5" rx="9" ry="2.8" fill="none" stroke="#fff6b0" stroke-width=".8"/>`,
+    `<path d="M10 14.5L21 -1l9 15.5z" fill="#6b3fc7" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"/><path d="M7 14.5h26" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M7 14.5h26" stroke="#4a2a9a" stroke-width="2" stroke-linecap="round"/><path d="M19.5 7l.9 1.9 2 .3-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.3z" fill="#ffe14d"/>`,
+  ][l.hat];
+  return `<svg viewBox="0 0 40 40" overflow="visible">${body}${face}${hat}</svg>`;
+}
+function avatarHTML(look, size, extra = ''){
+  return `<span class="avatar"${extra} style="${avStyle(look)}${size ? `;width:${size}px;height:${size}px` : ''}">${avatarSvg(look)}</span>`;
+}
+function buyCosmetic(cat, i, done, base){
+  const item = COS[cat].items[i], look = Object.assign(lookOf(base || S.profile), { [cat]: i });
   const short = item.price - S.coins;
-  openModal(item.name + (kind === 'av' ? ' Avatar' : ' Frame'), `${preview}
+  openModal(`${item.name} ${COS[cat].tab}`, `<div style="display:grid;place-items:center">${avatarHTML(look, 84)}</div>
     <p>${short > 0 ? `You need <b>${fmt(short)}</b> more coins.` : 'Unlock it forever?'}</p>
     <button class="btn btn-green price" data-buy ${short > 0 ? 'disabled' : ''}><span class="coin"></span>${fmt(item.price)}</button>`, el => {
     el.querySelector('[data-buy]').addEventListener('click', () => {
       if (S.coins < item.price) return;
-      S.coins -= item.price; list.push(i);
-      if (kind === 'av') S.profile.avatar = i; else S.profile.frame = i;
+      S.coins -= item.price; S.owned[COS[cat].own].push(i);
       save(); tone(784, .12, .06, 'triangle'); setTimeout(() => tone(1319, .25, .06, 'triangle'), 120); confetti(40);
       closeModal(); refreshTop(); done && done();
     });
   });
-}
-function avatarSvg(i){
-  const a = AVATARS[i % AVATARS.length];
-  // a little crowned cannonball character
-  return `<svg viewBox="0 0 40 40"><circle cx="20" cy="23" r="13" fill="${a.fg}" stroke="#fff" stroke-width="2"/><circle cx="15.5" cy="21" r="2.4" fill="#fff"/><circle cx="24.5" cy="21" r="2.4" fill="#fff"/><circle cx="16" cy="21.5" r="1.2" fill="#222"/><circle cx="25" cy="21.5" r="1.2" fill="#222"/><path d="M15 27q5 4 10 0" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M12 11l3 4 5-6 5 6 3-4v5H12z" fill="#ffc83d" stroke="#7a4f00" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
 }
 
 function showOnly(id){
@@ -1692,7 +1780,7 @@ function slotsModal(){
   for (let n = 1; n <= SLOTS; n++){
     const d = n === SLOT ? S : readSlot(n), active = n === SLOT;
     rows.push(`<div class="slot${active ? ' active' : ''}">
-      ${d ? `<span class="avatar" style="${avStyle(d.profile.avatar, d.profile.frame)};width:46px;height:46px">${avatarSvg(d.profile.avatar)}</span>`
+      ${d ? avatarHTML(d.profile, 46)
           : `<span class="avatar slot-empty" style="width:46px;height:46px">+</span>`}
       <div class="slot-info"><b>Profile ${n}${active ? ' \u00b7 Playing' : ''}</b>
         <small>${d ? `${escapeHtml(d.profile.name)} \u00b7 Level ${fmt(d.level + 1)} \u00b7 <span class="coin sm"></span> ${fmt(d.coins)}` : 'Empty'}</small></div>
@@ -1783,19 +1871,44 @@ function backupModal(){
 /* ---------- redeem codes ---------- */
 const SECRET_CODE = 'SMASH10';   // shown to the player at level 200 and on the Redeem Code page
 const CODES = {
-  [SECRET_CODE]: { amount: true },   // pick a coin amount, up to SECRET_MAX, once a week, after level 200
+  [SECRET_CODE]: { amount: true },
+  LVLSKP: { skip: true },   // TEMPORARY for testing: jump to any level. Remove before release.   // pick a coin amount, up to SECRET_MAX, once a week, after level 200
 };
 const SECRET_MAX = 100000;                       // most coins one use of SMASH10 can give
-const SMASH_TEST = true;                         // true = testing only: turns off the weekly timer, level 200 lock and 100k max
+const SMASH_TEST = false;                        // true = testing only: turns off the weekly timer, level 200 lock and 100k max
 const SECRET_COOLDOWN = SMASH_TEST ? 0 : 7 * 24 * 60 * 60 * 1000; // SMASH10 can be used once every 7 days
 function smashWait(){                            // ms until SMASH10 can be used again (0 = ready)
   const now = Date.now();
   if ((S.smashLast || 0) > now) S.smashLast = now; // device clock went backwards: count the week from now
   return Math.max(0, (S.smashLast || 0) + SECRET_COOLDOWN - now);
 }
+const secretUnlocked = () => S.codeRevealed || S.level + 1 >= SECRET_LEVEL;   // level 200 reached (or skipped to)
 function fmtWait(ms){
   const h = Math.ceil(ms / 3600000), d = Math.floor(h / 24), r = h % 24;
   return d ? `${d} day${d > 1 ? 's' : ''}${r ? ` ${r} hour${r > 1 ? 's' : ''}` : ''}` : `${h} hour${h > 1 ? 's' : ''}`;
+}
+// TEMPORARY (LVLSKP): jump straight to a level for testing
+function skipModal(){
+  openModal('Level Skip', `<p>Skip to level:</p>
+    <input id="skipInput" type="number" inputmode="numeric" min="1" placeholder="${S.level + 1}" aria-label="Level number" style="width:100%;box-sizing:border-box;border:3px solid var(--panel-edge);border-radius:12px;padding:10px 12px;font:900 1.4rem var(--font-body);text-align:center;color:var(--text)">
+    <p id="skipMsg" style="color:#d9223a;font-weight:900;min-height:1.2em;margin:6px 0"></p>
+    <button class="btn btn-green" data-skip>Go!</button>`, el => {
+    const inp = el.querySelector('#skipInput'), msg = el.querySelector('#skipMsg');
+    const go = () => {
+      const n = Math.floor(+inp.value);
+      if (!n || n < 1){ msg.textContent = 'Enter a level number.'; tone(200, .15, .05, 'square'); return; }
+      S.level = n - 1;
+      const unlock = n >= SECRET_LEVEL && !S.codeRevealed;   // skipping to level 200+ unlocks the secret code
+      if (unlock) S.codeRevealed = true;
+      save();
+      tone(784, .12, .06, 'triangle'); setTimeout(() => tone(1319, .25, .06, 'triangle'), 120); confetti(40);
+      closeModal(); toast(`Skipped to level ${fmt(n)}`); goHome();
+      if (unlock) setTimeout(secretReveal, 600);
+    };
+    el.querySelector('[data-skip]').addEventListener('click', go);
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+    setTimeout(() => inp.focus(), 50);
+  });
 }
 function amountModal(){
   openModal('Add Coins', `<p>How many coins?</p>
@@ -1809,7 +1922,7 @@ function amountModal(){
       const n = Math.floor(Number(inp.value));
       if (!n || n < 1){ msg.textContent = 'Enter an amount above 0.'; return; }
       if (!SMASH_TEST && n > SECRET_MAX){ msg.textContent = `The most you can add is ${fmt(SECRET_MAX)} coins.`; tone(200, .15, .05, 'square'); return; }
-      if ((!SMASH_TEST && S.level < SECRET_LEVEL) || smashWait() > 0){ closeModal(); return; }
+      if ((!SMASH_TEST && !secretUnlocked()) || smashWait() > 0){ closeModal(); return; }
       const before = S.coins;
       S.coins = S.coins + n; S.smashLast = Date.now(); save(); refreshTop();
       tone(784, .12, .06, 'triangle'); setTimeout(() => tone(1319, .25, .06, 'triangle'), 120); confetti(50); buzz(40);
@@ -1826,7 +1939,7 @@ function codeModal(){
       ? `<p class="code-hint open">\u{1F513} Your level 200 code: <b style="letter-spacing:.08em">${secretCode()}</b><br>
            <small>Up to ${fmt(SECRET_MAX)} coins, once a week. ${smashWait() ? `Ready again in ${fmtWait(smashWait())}.` : 'Ready to use now!'}</small></p>`
       : `<div class="code-hint"><b>\u{1F512} Secret code</b><span>Unlocks when you reach level ${SECRET_LEVEL}</span>
-         <div class="pbar"><i style="width:${Math.min(100, S.level / SECRET_LEVEL * 100)}%"></i><span>Level ${Math.min(S.level, SECRET_LEVEL)}/${SECRET_LEVEL}</span></div></div>`}
+         <div class="pbar"><i style="width:${Math.min(100, (S.level + 1) / SECRET_LEVEL * 100)}%"></i><span>Level ${Math.min(S.level + 1, SECRET_LEVEL)}/${SECRET_LEVEL}</span></div></div>`}
     <input id="codeInput" maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Secret code"
       style="border:3px solid var(--panel-edge);border-radius:12px;padding:12px;font:900 1.2rem var(--font-body);text-align:center;letter-spacing:.12em;text-transform:uppercase;color:var(--text);background:#fff;width:100%">
     <p id="codeMsg" style="min-height:1.4em;color:#d91e3a"></p>
@@ -1837,11 +1950,12 @@ function codeModal(){
       if (!code){ msg.textContent = 'Type a code first.'; return; }
       if (!c){ msg.textContent = 'That code doesn’t exist.'; tone(200, .15, .05, 'square'); return; }
       if (c.amount){
-        if (!SMASH_TEST && S.level < SECRET_LEVEL){ msg.textContent = `This code unlocks at level ${SECRET_LEVEL}.`; tone(200, .15, .05, 'square'); return; }
+        if (!SMASH_TEST && !secretUnlocked()){ msg.textContent = `This code unlocks at level ${SECRET_LEVEL}.`; tone(200, .15, .05, 'square'); return; }
         const w = smashWait();
         if (w){ msg.textContent = `Already used this week. Ready again in ${fmtWait(w)}.`; tone(200, .15, .05, 'square'); return; }
         amountModal(); return;
       }
+      if (c.skip){ skipModal(); return; }
       if (S.codes.includes(code)){ msg.textContent = 'You already used this code.'; return; }
       c.give(); S.codes.push(code); save(); refreshTop(); renderBoosters();
       tone(784, .12, .06, 'triangle'); setTimeout(() => tone(1319, .25, .06, 'triangle'), 120); confetti(50); buzz(40);
@@ -2042,7 +2156,7 @@ function showWin(){
 }
 $('continueBtn').addEventListener('click', () => {
   click(); goHome();
-  if (S.level >= SECRET_LEVEL && !S.codeRevealed){ S.codeRevealed = true; save(); setTimeout(secretReveal, 300); }
+  if (S.level + 1 >= SECRET_LEVEL && !S.codeRevealed){ S.codeRevealed = true; save(); setTimeout(secretReveal, 300); }   // arrived at level 200
 });
 // level 200 reward: shows the player the redeem code
 const SECRET_LEVEL = 200;
@@ -2079,15 +2193,17 @@ function renderShop(){
       <div style="flex:1;min-width:0"><b>Full Lives</b><br><small>Refill all 5 lives</small></div>
       <button class="btn btn-green price" style="width:auto" data-buy="lives" data-price="600" ${S.lives >= MAX_LIVES ? 'disabled' : ''}><span class="coin sm"></span>600</button>
     </div>
-    <div class="section-title">Royal Avatars</div>
-    <div class="card"><div class="av-grid">${AVATARS.map((_, i) => shopCos('av', i)).join('')}</div></div>
-    <div class="section-title">Royal Frames</div>
-    <div class="card"><div class="av-grid">${FRAMES.map((_, i) => shopCos('fr', i)).join('')}</div></div>
+    <div class="section-title">Player Look</div>
+    <div class="tabs tabs6" role="tablist">${COS_KEYS.map(k => `<button class="tab" role="tab" data-st="${k}" aria-selected="${shopTab === k}">${COS[k].tab}</button>`).join('')}</div>
+    <div class="card"><div class="av-grid">${COS[shopTab].items.map((_, i) => shopCos(shopTab, i)).join('')}</div></div>
     <p class="note">Coins are earned by clearing levels, daily rewards and bonus games.</p>`;
+  $('shopBody').querySelectorAll('[data-st]').forEach(t => t.addEventListener('click', () => {
+    click(); shopTab = t.dataset.st; const y = $('shopBody').scrollTop; renderShop(); $('shopBody').scrollTop = y;
+  }));
   $('shopBody').querySelectorAll('[data-scos]').forEach(b => b.addEventListener('click', () => {
-    const kind = b.dataset.scos, i = +b.dataset.i;
-    if ((kind === 'av' ? S.owned.avatars : S.owned.frames).includes(i)){ toast('You own this. Equip it in your profile'); return; }
-    click(); buyCosmetic(kind, i, renderShop);
+    const cat = b.dataset.scos, i = +b.dataset.i;
+    if (ownsCos(cat, i)){ toast('You own this. Equip it in your profile'); return; }
+    click(); buyCosmetic(cat, i, () => { const y = $('shopBody').scrollTop; renderShop(); $('shopBody').scrollTop = y; });
   }));
   document.querySelectorAll('.coinTxt2').forEach(e => e.textContent = fmt(S.coins));
   $('shopBody').querySelectorAll('[data-buy]').forEach(b => b.addEventListener('click', () => {
@@ -2102,12 +2218,12 @@ function renderShop(){
   }));
 }
 
-function shopCos(kind, i){
-  const owned = (kind === 'av' ? S.owned.avatars : S.owned.frames).includes(i);
-  const item = kind === 'av' ? AV_INFO[i] : FRAMES[i];
-  const style = kind === 'av' ? avStyle(i, 0) : avStyle(S.profile.avatar, i);
-  return `<div class="cos-cell"><button class="avatar" style="${style}" data-scos="${kind}" data-i="${i}" aria-label="${item.name}${owned ? ', owned' : ', ' + item.price + ' coins'}">${avatarSvg(kind === 'av' ? i : S.profile.avatar)}</button>
-    <span class="cos-price">${owned ? 'Owned' : `<span class="coin sm"></span>${fmt(item.price)}`}</span></div>`;
+let shopTab = 'char';
+function shopCos(cat, i){
+  const owned = ownsCos(cat, i), item = COS[cat].items[i];
+  const look = Object.assign(lookOf(S.profile), { [cat]: i });
+  return `<div class="cos-cell"><button class="avatar" style="${avStyle(look)}" data-scos="${cat}" data-i="${i}" aria-label="${item.name}${owned ? ', owned' : ', ' + item.price + ' coins'}">${avatarSvg(look)}</button>
+    <span class="cos-price">${owned ? 'Owned' : `<span class="coin sm"></span>${fmt(item.price)}`}</span><span class="cos-name">${item.name}</span></div>`;
 }
 
 /* ---------- leaderboard ---------- */
@@ -2132,7 +2248,7 @@ function gcShowBoard(){
   P.showLeaderboard({ leaderboardID: GC_BOARD }).catch(() => toast('Game Center is not available right now'));
 }
 function renderBoard(){
-  const me = `<div class="lb-row"><span class="rank">★</span><span class="avatar" style="${avStyle(S.profile.avatar, S.profile.frame)}">${avatarSvg(S.profile.avatar)}</span><span>${escapeHtml(S.profile.name)}</span><span class="lb-lvl"><small>Best</small>${S.level}</span></div>`;
+  const me = `<div class="lb-row"><span class="rank">★</span>${avatarHTML(S.profile)}<span>${escapeHtml(S.profile.name)}</span><span class="lb-lvl"><small>Best</small>${S.level}</span></div>`;
   const gc = GCNative()
     ? `<div class="card gc-card"><div class="gc-logo">\u{1F3C6}</div><b>Game Center</b>
         <small>${gcPlayer ? 'Signed in as ' + escapeHtml(gcPlayer) : 'Compete with players around the world'}</small>
@@ -2144,42 +2260,43 @@ function renderBoard(){
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
 /* ---------- profile ---------- */
-let profTab = 'av', pickAv = 0, pickFr = 0, draftName = '';
-function cosmeticCell(kind, i, picked){
-  const owned = (kind === 'av' ? S.owned.avatars : S.owned.frames).includes(i);
-  const item = kind === 'av' ? AV_INFO[i] : FRAMES[i];
-  const style = kind === 'av' ? avStyle(i, pickFr) : avStyle(pickAv, i);
-  const face = avatarSvg(kind === 'av' ? i : pickAv);
-  return `<div class="cos-cell"><button class="avatar${owned ? '' : ' cos-locked'}" style="${style}" data-cos="${kind}" data-i="${i}" aria-pressed="${picked}" aria-label="${item.name}${owned ? '' : ', costs ' + item.price + ' coins'}">${face}${owned ? '' : '<span class="cos-lock">' + ICONS.lock + '</span>'}</button>
+let profTab = 'char', pick = null, draftName = '';
+function cosmeticCell(cat, i){
+  const owned = ownsCos(cat, i), item = COS[cat].items[i], picked = pick[cat] === i;
+  const look = Object.assign({}, pick, { [cat]: i });
+  return `<div class="cos-cell"><button class="avatar${owned ? '' : ' cos-locked'}" style="${avStyle(look)}" data-cos="${cat}" data-i="${i}" aria-pressed="${picked}" aria-label="${item.name}${owned ? '' : ', costs ' + item.price + ' coins'}">${avatarSvg(look)}${owned ? '' : '<span class="cos-lock"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2.5" fill="#ffc83d" stroke="#7a4f00" stroke-width="1.6"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#7a4f00" stroke-width="2" fill="none"/></svg></span>'}</button>
     <span class="cos-price">${owned ? (picked ? 'Equipped' : item.name) : `<span class="coin sm"></span>${fmt(item.price)}`}</span></div>`;
 }
 function renderProfile(reset = true){
-  if (reset){ profTab = 'av'; pickAv = S.profile.avatar; pickFr = S.profile.frame; draftName = S.profile.name; }
-  const grid = profTab === 'av'
-    ? AVATARS.map((_, i) => cosmeticCell('av', i, i === pickAv)).join('')
-    : FRAMES.map((_, i) => cosmeticCell('fr', i, i === pickFr)).join('');
+  if (reset){ profTab = 'char'; pick = lookOf(S.profile); draftName = S.profile.name; }
+  const ownedCount = COS_KEYS.reduce((n, k) => n + S.owned[COS[k].own].length, 0), total = COS_KEYS.reduce((n, k) => n + COS[k].items.length, 0);
   $('profileBody').innerHTML = `
     <div class="card" style="display:flex;flex-direction:column;gap:10px">
-      <div class="name-row"><span class="avatar" style="${avStyle(pickAv, pickFr)}">${avatarSvg(pickAv)}</span><input id="nameInput" maxlength="16" value="${escapeHtml(draftName)}" aria-label="Player name"><span class="lb-lvl"><small>Level</small>${S.level + 1}</span></div>
+      <div class="prof-hero">${avatarHTML(pick, 96)}</div>
+      <div class="name-row"><input id="nameInput" maxlength="16" value="${escapeHtml(draftName)}" aria-label="Player name"><span class="lb-lvl"><small>Level</small>${S.level + 1}</span></div>
     </div>
     <div class="section-title">General Stats</div>
     <div class="card"><div class="stat-grid"><div><b>${S.stats.firstTry}</b>First Try Wins</div><div><b>${S.stats.best}</b>Longest Streak</div><div><b>${S.stats.won}</b>Levels Won</div></div></div>
-    <div class="tabs" role="tablist"><button class="tab" role="tab" data-pt="av" aria-selected="${profTab === 'av'}">Avatar</button><button class="tab" role="tab" data-pt="fr" aria-selected="${profTab === 'fr'}">Frame</button></div>
-    <div class="card"><div class="av-grid">${grid}</div></div>
-    <button class="btn btn-green" id="saveProfile">Save</button>`;
-  const body = $('profileBody');
+    <div class="section-title">Customize <small style="font-family:var(--font-body);font-size:.8rem">(${ownedCount}/${total} unlocked)</small></div>
+    <div class="tabs tabs6" role="tablist">${COS_KEYS.map(k => `<button class="tab" role="tab" data-pt="${k}" aria-selected="${profTab === k}">${COS[k].tab}</button>`).join('')}</div>
+    <div class="card"><div class="av-grid">${COS[profTab].items.map((_, i) => cosmeticCell(profTab, i)).join('')}</div></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-blue" id="randLook" style="flex:1;font-size:1.05rem">\u{1F3B2} Random</button><button class="btn btn-green" id="saveProfile" style="flex:1.4">Save</button></div>`;
+  const body = $('profileBody'), keepScroll = f => { const y = body.scrollTop; f(); body.scrollTop = y; };
   body.querySelector('#nameInput').addEventListener('input', e => { draftName = e.target.value; });
-  body.querySelectorAll('[data-pt]').forEach(t => t.addEventListener('click', () => { profTab = t.dataset.pt; click(); renderProfile(false); }));
+  body.querySelectorAll('[data-pt]').forEach(t => t.addEventListener('click', () => { profTab = t.dataset.pt; click(); keepScroll(() => renderProfile(false)); }));
   body.querySelectorAll('[data-cos]').forEach(b => b.addEventListener('click', () => {
-    const kind = b.dataset.cos, i = +b.dataset.i;
-    const owned = (kind === 'av' ? S.owned.avatars : S.owned.frames).includes(i);
+    const cat = b.dataset.cos, i = +b.dataset.i;
     click();
-    if (!owned){ buyCosmetic(kind, i, () => { if (kind === 'av') pickAv = i; else pickFr = i; renderProfile(false); }); return; }
-    if (kind === 'av') pickAv = i; else pickFr = i;
-    renderProfile(false);
+    if (!ownsCos(cat, i)){ buyCosmetic(cat, i, () => { pick[cat] = i; keepScroll(() => renderProfile(false)); }, pick); return; }
+    pick[cat] = i; keepScroll(() => renderProfile(false));
   }));
+  body.querySelector('#randLook').addEventListener('click', () => {
+    // mix of the parts you own
+    COS_KEYS.forEach(k => { const o = S.owned[COS[k].own]; pick[k] = o[Math.floor(Math.random() * o.length)]; });
+    tone(660 + Math.random() * 300, .08, .05, 'triangle'); keepScroll(() => renderProfile(false));
+  });
   body.querySelector('#saveProfile').addEventListener('click', () => {
-    S.profile.name = (draftName.trim() || 'Player').slice(0, 16); S.profile.avatar = pickAv; S.profile.frame = pickFr; save();
+    S.profile.name = (draftName.trim() || 'Player').slice(0, 16); Object.assign(S.profile, pick); save();
     tone(988, .12, .05, 'triangle'); toast('Profile saved'); goHome();
   });
 }
