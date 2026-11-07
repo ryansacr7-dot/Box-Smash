@@ -2219,7 +2219,15 @@ function gcSignIn(){
 }
 // BoxBoard is Box Smash's own native plugin (native/box-board): it reads the leaderboard so we can draw it ourselves
 let bbPlugin = null;
-const BoxBoard = () => GCNative() && Capacitor.registerPlugin ? (bbPlugin || (bbPlugin = Capacitor.registerPlugin('BoxBoard'))) : null;
+function BoxBoard(){
+  if (!GCNative()) return null;
+  if (bbPlugin) return bbPlugin;
+  // native plugins show up on Capacitor.Plugins inside the app; registerPlugin is the newer way to reach them
+  const P = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.BoxBoard;
+  if (P) return bbPlugin = P;
+  if (Capacitor.registerPlugin) return bbPlugin = Capacitor.registerPlugin('BoxBoard');
+  return null;
+}
 // each score carries the player's character as one number: 4 bits per part, plus a version tag
 const LOOK_TAG = 1, LOOK_PARTS = ['char', 'avatar', 'face', 'hat', 'bg', 'frame'];
 function packLook(p){ const l = lookOf(p); return LOOK_PARTS.reduce((n, k, i) => n + l[k] * 16 ** i, LOOK_TAG * 16 ** 6); }
@@ -2242,9 +2250,13 @@ function gcShowBoard(){
 let boardScope = 'global', boardData = { global: null, friends: null }, boardBusy = false;
 function loadBoard(force){
   const B = BoxBoard(), scope = boardScope, d = boardData[scope];
-  if (!B || !gcPlayer || boardBusy || (!force && d && !d.err && Date.now() - d.at < 30000)) return;
+  if (!gcPlayer || boardBusy || (!force && d && !d.err && Date.now() - d.at < 30000)) return;
+  if (!B){ boardData[scope] = { at: Date.now(), err: true, msg: 'no plugin' }; if (!$('board').hidden) renderBoard(false); return; }
   boardBusy = true;
-  B.load({ leaderboardID: GC_BOARD, scope, count: 50 })
+  // never wait forever: give up after 15 seconds and show "try again"
+  const timeout = new Promise((_, no) => setTimeout(() => no(new Error('timed out')), 15000));
+  let call; try { call = B.load({ leaderboardID: GC_BOARD, scope, count: 50 }); } catch(e){ call = Promise.reject(e); }
+  Promise.race([call, timeout])
     .then(r => { boardData[scope] = { at: Date.now(), entries: r.entries || [], local: r.local || null, total: r.total || 0 }; })
     .catch(e => { boardData[scope] = { at: Date.now(), err: true, msg: String(e && e.message || e) }; })
     .finally(() => { boardBusy = false; if (!$('board').hidden) renderBoard(false); });
@@ -2269,7 +2281,7 @@ function renderBoard(load = true){
     const d = boardData[boardScope];
     let list;
     if (!d) list = `<p class="note">Loading players\u2026</p>`;
-    else if (d.err) list = `<p class="note">Couldn't load the leaderboard. Check your internet and try again.</p><button class="btn btn-blue" id="lbRetry">Try again</button>`;
+    else if (d.err) list = `<p class="note">Couldn't load the leaderboard. Check your internet and try again.<br><small style="opacity:.7">(${escapeHtml(d.msg || 'error')})</small></p><button class="btn btn-blue" id="lbRetry">Try again</button>`;
     else if (!d.entries.length) list = `<p class="note">${boardScope === 'friends' ? 'None of your Game Center friends play Box Smash yet.' : 'No scores yet. Be the first!'}</p>`;
     else {
       list = d.entries.map(boardRow).join('');
