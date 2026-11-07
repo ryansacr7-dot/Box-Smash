@@ -1766,15 +1766,33 @@ function livesModal(){
     });
   });
 }
+
+/* ---------- Ryonic sync: sends this game's progress to the Ryonic app ---------- */
+function ryonicCanSync(){ try { return !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()); } catch(e){ return false; } }
+function ryonicSend(stats){
+  var json = JSON.stringify(stats);
+  var b64 = btoa(unescape(encodeURIComponent(json))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  var s = 'ryonic|' + b64, h = 2166136261;
+  for (var i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  var link = 'ryonic://sync?d=' + b64 + '&c=' + h.toString(16);
+  if (typeof window.__ryonicOpen === 'function') window.__ryonicOpen(link); else window.location.href = link;
+}
+function ryonicSync(){
+  save();
+  ryonicSend({ g:'box', v:1, t:Date.now(), name:(S.profile && S.profile.name) || '', cleared:S.level || 0, coins:S.coins || 0,
+    won:(S.stats && S.stats.won) || 0, firstTry:(S.stats && S.stats.firstTry) || 0, bestStreak:(S.stats && S.stats.best) || 0,
+    played:(S.level || 0) > 0 || ((S.stats && S.stats.won) || 0) > 0 });
+}
 function settingsModal(){
   const row = (k, label) => `<div class="set-row" style="display:flex;justify-content:space-between;align-items:center;background:#fff;border-radius:14px;padding:10px 12px;font-weight:900">${label}<button class="btn ${S.set[k] ? 'btn-green' : 'btn-red'}" style="font-size:1rem;padding:6px 16px" data-k="${k}">${S.set[k] ? 'On' : 'Off'}</button></div>`;
   openModal('Settings', row('music', 'Music') + row('sound', 'Sound') + row('boxVoice', 'Box Voices') + row('vib', 'Vibration') +
-    `<button class="btn btn-blue" data-boxes style="font-size:1.1rem">Box Customization</button><button class="btn btn-gold" data-slots style="font-size:1.1rem">Save Profiles</button><button class="btn btn-gold" data-backup style="font-size:1.1rem">Backup &amp; Restore</button><button class="btn btn-blue" data-code style="font-size:1.1rem">Redeem Code</button>`, el => {
+    `<button class="btn btn-blue" data-boxes style="font-size:1.1rem">Box Customization</button><button class="btn btn-gold" data-slots style="font-size:1.1rem">Save Profiles</button><button class="btn btn-gold" data-backup style="font-size:1.1rem">Backup &amp; Restore</button><button class="btn btn-blue" data-code style="font-size:1.1rem">Redeem Code</button>` + (ryonicCanSync() ? `<button class="btn btn-green" data-ryonic style="font-size:1.1rem">Sync to Ryonic</button>` : ``), el => {
     el.querySelectorAll('[data-k]').forEach(b => b.addEventListener('click', () => { toggleSetting(b.dataset.k); settingsModal(); }));
     el.querySelector('[data-code]').addEventListener('click', () => { click(); codeModal(); });
     el.querySelector('[data-boxes]').addEventListener('click', () => { click(); closeModal(); openBoxPage(); });
     el.querySelector('[data-slots]').addEventListener('click', () => { click(); slotsModal(); });
     el.querySelector('[data-backup]').addEventListener('click', () => { click(); backupModal(); });
+    const ry = el.querySelector('[data-ryonic]'); if (ry) ry.addEventListener('click', () => { click(); ryonicSync(); });
   });
 }
 
