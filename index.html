@@ -1365,8 +1365,9 @@ function blast(pos, radius = 1.8, power = 9){
 }
 
 /* ---------- boosters ---------- */
+const STORM_SECS = 5;   // how long Ball Storm's free rapid fire lasts
 const BOOST = {
-  inf:  { name: 'Ball Storm', text: 'Free rapid fire for 3 seconds!', price: 400 },
+  inf:  { name: 'Ball Storm', text: 'Free rapid fire for 5 seconds!', price: 400 },
   big:  { name: 'Mega Shot', text: 'Heavy balls that crash through walls!', price: 300 },
   wand: { name: 'Zap Wand', text: 'Tap a box to zap it and its neighbours!', price: 400 },
   bomb: { name: 'Bomb', text: 'Tap to fire a bomb there!', price: 500 },
@@ -1387,7 +1388,7 @@ function useBooster(k){
   if (S.boosters[k] <= 0){ buyBoosterModal(k, () => useBooster(k)); return; }
   if (G.armed && (k === 'wand' || k === 'bomb')){ S.boosters[G.armed]++; G.armed = null; }
   S.boosters[k]--; save(); click(); buzz(15);
-  if (k === 'inf'){ G.inf = 3; showBanner(k, true); hudBalls(); }
+  if (k === 'inf'){ G.inf = STORM_SECS; showBanner(k, true); hudBalls(); }
   else if (k === 'big'){ G.big = 5; showBanner(k); }
   else { G.armed = k; showBanner(k); }
   renderBoosters();
@@ -1464,7 +1465,7 @@ function update(dt){
     // continuous fire while held
     G.fireCd -= dt;
     if (G.inf > 0){
-      G.inf -= dt; $('bnFill').style.width = Math.max(0, G.inf / 3 * 100) + '%';
+      G.inf -= dt; $('bnFill').style.width = Math.max(0, G.inf / STORM_SECS * 100) + '%';
       if (G.inf <= 0){ G.inf = 0; hideBanner(); renderBoosters(); hudBalls(); }
     }
     if (G.holding && G.aimTarget && !G.armed && G.fireCd <= 0){
@@ -2008,7 +2009,7 @@ $('bundleWidget').addEventListener('click', () => { click(); renderShop(); showO
 const TIPS = [
   'Aim low to knock out the base and the whole tower falls.',
   'Hold your finger down to keep firing.',
-  'Ball Storm gives you 3 seconds of free rapid fire.',
+  'Ball Storm gives you 5 seconds of free rapid fire.',
   'Mega Shot balls crash straight through tall walls.',
   'The Zap Wand clears a box and its neighbours.',
   'Every piece has to leave the platform to win.',
@@ -2156,7 +2157,7 @@ function renderShop(){
   $('shopBody').innerHTML = `
     <div class="section-title">Boosters</div>
     <div class="shop-grid">
-      ${item('inf', 'Ball Storm', 'Free rapid fire for 3 seconds', BOOST.inf.price, ICONS.inf)}
+      ${item('inf', 'Ball Storm', 'Free rapid fire for 5 seconds', BOOST.inf.price, ICONS.inf)}
       ${item('big', 'Mega Shot', '5 heavy wall-crashing balls', BOOST.big.price, ICONS.big)}
       ${item('wand', 'Zap Wand', 'Zap a box and its neighbours', BOOST.wand.price, ICONS.wand)}
       ${item('bomb', 'Bomb', bombLocked() ? `Unlocks at level ${BOMB_UNLOCK}` : 'Blast a whole section', BOOST.bomb.price, ICONS.bomb)}
