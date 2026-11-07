@@ -203,7 +203,11 @@ button:focus-visible{outline:3px solid #fff;outline-offset:2px}
 .lb-row{display:grid;grid-template-columns:34px 40px 1fr auto;align-items:center;gap:8px;background:var(--panel);border:3px solid var(--panel-edge);border-radius:16px;padding:6px 10px 6px 6px;color:var(--text);font-weight:900}
 .lb-row .rank{width:30px;height:30px;border-radius:50%;background:#d9b37a;display:grid;place-items:center;color:#fff;font-size:.85rem}
 .lb-row .avatar{width:38px;height:38px;border-width:2px}
-.lb-row .avatar svg{width:24px;height:24px}
+.lb-row .avatar svg{width:28px;height:28px}
+.lb-row.me{border-color:#3fbf3f;background:#eaffe4}
+.lb-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb-name small{color:#3a8a3a;font-size:.75rem}
+.lb-list{display:flex;flex-direction:column;gap:6px}
 .lb-lvl{background:var(--maroon);color:#fff;border-radius:10px;padding:2px 10px;text-align:center;line-height:1.1;font-size:1.1rem;font-variant-numeric:tabular-nums}
 .lb-lvl small{display:block;font-size:.6rem;opacity:.8}
 .gc-card{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
@@ -2213,24 +2217,76 @@ function gcSignIn(){
   return P.signIn().then(r => { gcPlayer = r && r.player_name || 'Player'; gcSubmit(); return gcPlayer; })
     .catch(() => null).finally(() => { gcTrying = false; if (!$('board').hidden) renderBoard(); });
 }
+// BoxBoard is Box Smash's own native plugin (native/box-board): it reads the leaderboard so we can draw it ourselves
+let bbPlugin = null;
+const BoxBoard = () => GCNative() && Capacitor.registerPlugin ? (bbPlugin || (bbPlugin = Capacitor.registerPlugin('BoxBoard'))) : null;
+// each score carries the player's character as one number: 4 bits per part, plus a version tag
+const LOOK_TAG = 1, LOOK_PARTS = ['char', 'avatar', 'face', 'hat', 'bg', 'frame'];
+function packLook(p){ const l = lookOf(p); return LOOK_PARTS.reduce((n, k, i) => n + l[k] * 16 ** i, LOOK_TAG * 16 ** 6); }
+function unpackLook(n){
+  if (!n || Math.floor(n / 16 ** 6) !== LOOK_TAG) return null;
+  const l = {}; LOOK_PARTS.forEach((k, i) => { l[k] = Math.floor(n / 16 ** i) % 16; }); return lookOf(l);
+}
 function gcSubmit(){
   const P = GCPlugin(); if (!P || !gcPlayer) return;
-  try { P.submitScore({ leaderboardID: GC_BOARD, totalScoreAmount: S.level }).catch(() => {}); } catch(e){}
+  const old = () => { try { P.submitScore({ leaderboardID: GC_BOARD, totalScoreAmount: S.level }).catch(() => {}); } catch(e){} };
+  const B = BoxBoard();
+  if (!B){ old(); return; }
+  B.submit({ leaderboardID: GC_BOARD, score: S.level, context: packLook(S.profile) }).catch(old);
 }
 function gcShowBoard(){
   const P = GCPlugin(); if (!P) return;
   if (!gcPlayer){ gcSignIn().then(n => { if (n) P.showLeaderboard({ leaderboardID: GC_BOARD }).catch(() => {}); else toast('Sign in to Game Center in iPhone Settings'); }); return; }
   P.showLeaderboard({ leaderboardID: GC_BOARD }).catch(() => toast('Game Center is not available right now'));
 }
-function renderBoard(){
-  const me = `<div class="lb-row"><span class="rank">★</span>${avatarHTML(S.profile)}<span>${escapeHtml(S.profile.name)}</span><span class="lb-lvl"><small>Best</small>${S.level}</span></div>`;
-  const gc = GCNative()
-    ? `<div class="card gc-card"><div class="gc-logo">\u{1F3C6}</div><b>Game Center</b>
-        <small>${gcPlayer ? 'Signed in as ' + escapeHtml(gcPlayer) : 'Compete with players around the world'}</small>
-        <button class="btn btn-green" id="gcOpen">${gcPlayer ? 'Open Leaderboard' : 'Sign in to Game Center'}</button></div>`
-    : `<p class="note">Play the Box Smash app on iPhone or iPad to compete on the Game Center leaderboard.</p>`;
-  $('boardBody').innerHTML = `<div class="section-title">Highest Level</div>${me}${gc}`;
-  const b = $('gcOpen'); if (b) b.addEventListener('click', () => { click(); gcShowBoard(); });
+let boardScope = 'global', boardData = { global: null, friends: null }, boardBusy = false;
+function loadBoard(force){
+  const B = BoxBoard(), scope = boardScope, d = boardData[scope];
+  if (!B || !gcPlayer || boardBusy || (!force && d && !d.err && Date.now() - d.at < 30000)) return;
+  boardBusy = true;
+  B.load({ leaderboardID: GC_BOARD, scope, count: 50 })
+    .then(r => { boardData[scope] = { at: Date.now(), entries: r.entries || [], local: r.local || null, total: r.total || 0 }; })
+    .catch(e => { boardData[scope] = { at: Date.now(), err: true, msg: String(e && e.message || e) }; })
+    .finally(() => { boardBusy = false; if (!$('board').hidden) renderBoard(false); });
+}
+function boardRow(e){
+  // your own row always shows your current look; other players show the look sent with their score
+  const look = e.me ? S.profile : (unpackLook(e.context) || { avatar: 1 });
+  const top = e.rank <= 3 ? ` style="background:none;font-size:1.6rem"` : '';
+  return `<div class="lb-row${e.me ? ' me' : ''}"><span class="rank"${top}>${e.rank <= 3 ? ['\u{1F947}', '\u{1F948}', '\u{1F949}'][e.rank - 1] : fmt(e.rank)}</span>${avatarHTML(look)}
+    <span class="lb-name">${escapeHtml(e.name || 'Player')}${e.me ? ' <small>(you)</small>' : ''}</span><span class="lb-lvl"><small>Best</small>${fmt(e.score)}</span></div>`;
+}
+function renderBoard(load = true){
+  const me = `<div class="lb-row me"><span class="rank">\u2605</span>${avatarHTML(S.profile)}<span class="lb-name">${escapeHtml(S.profile.name)}</span><span class="lb-lvl"><small>Best</small>${S.level}</span></div>`;
+  let html;
+  if (!GCNative()){
+    html = `<div class="section-title">Highest Level</div>${me}<p class="note">Play the Box Smash app on iPhone or iPad to see players from around the world here.</p>`;
+  } else if (!gcPlayer){
+    html = `<div class="section-title">Highest Level</div>${me}
+      <div class="card gc-card"><div class="gc-logo">\u{1F3C6}</div><b>World Leaderboard</b><small>Sign in to Game Center to see everyone's best level and characters</small>
+      <button class="btn btn-green" id="gcIn">Sign in to Game Center</button></div>`;
+  } else {
+    const d = boardData[boardScope];
+    let list;
+    if (!d) list = `<p class="note">Loading players\u2026</p>`;
+    else if (d.err) list = `<p class="note">Couldn't load the leaderboard. Check your internet and try again.</p><button class="btn btn-blue" id="lbRetry">Try again</button>`;
+    else if (!d.entries.length) list = `<p class="note">${boardScope === 'friends' ? 'None of your Game Center friends play Box Smash yet.' : 'No scores yet. Be the first!'}</p>`;
+    else {
+      list = d.entries.map(boardRow).join('');
+      if (d.local && !d.entries.some(e => e.me)) list += `<p class="note" style="margin:2px 0">\u2022 \u2022 \u2022</p>` + boardRow(Object.assign({}, d.local, { me: true }));
+    }
+    html = `<div class="tabs" role="tablist"><button class="tab" role="tab" data-ls="global" aria-selected="${boardScope === 'global'}">Everyone</button><button class="tab" role="tab" data-ls="friends" aria-selected="${boardScope === 'friends'}">Friends</button></div>
+      <div class="lb-list">${list}</div>
+      ${d && !d.err && d.total ? `<p class="note">${fmt(d.total)} player${d.total === 1 ? '' : 's'} \u00b7 signed in as ${escapeHtml(gcPlayer)}</p>` : ''}
+      <button class="btn btn-gold" id="gcOpen" style="font-size:1rem">Open in Game Center</button>`;
+    if (load) loadBoard();
+  }
+  $('boardBody').innerHTML = html;
+  const body = $('boardBody');
+  const inBtn = body.querySelector('#gcIn'); if (inBtn) inBtn.addEventListener('click', () => { click(); gcSignIn().then(n => { if (!n) toast('Sign in to Game Center in iPhone Settings'); }); });
+  const open = body.querySelector('#gcOpen'); if (open) open.addEventListener('click', () => { click(); gcShowBoard(); });
+  const retry = body.querySelector('#lbRetry'); if (retry) retry.addEventListener('click', () => { click(); boardData[boardScope] = null; renderBoard(false); loadBoard(true); });
+  body.querySelectorAll('[data-ls]').forEach(t => t.addEventListener('click', () => { click(); boardScope = t.dataset.ls; renderBoard(); }));
 }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
@@ -2271,7 +2327,7 @@ function renderProfile(reset = true){
     tone(660 + Math.random() * 300, .08, .05, 'triangle'); keepScroll(() => renderProfile(false));
   });
   body.querySelector('#saveProfile').addEventListener('click', () => {
-    S.profile.name = (draftName.trim() || 'Player').slice(0, 16); Object.assign(S.profile, pick); save();
+    S.profile.name = (draftName.trim() || 'Player').slice(0, 16); Object.assign(S.profile, pick); save(); gcSubmit();
     tone(988, .12, .05, 'triangle'); toast('Profile saved'); goHome();
   });
 }

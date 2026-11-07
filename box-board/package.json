@@ -1,0 +1,12 @@
+{
+  "name": "box-board",
+  "version": "1.0.0",
+  "description": "Reads the Box Smash Game Center leaderboard so the game can draw it with each player's character.",
+  "main": "index.js",
+  "license": "MIT",
+  "capacitor": {
+    "ios": {
+      "src": "."
+    }
+  }
+}

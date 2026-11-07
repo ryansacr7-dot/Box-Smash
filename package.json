@@ -1,0 +1,9 @@
+{
+  "name": "box-smash",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Box Smash iOS app. The build installs the local BoxBoard plugin from the box-board folder.",
+  "dependencies": {
+    "box-board": "file:box-board"
+  }
+}
