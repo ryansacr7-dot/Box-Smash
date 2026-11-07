@@ -1871,8 +1871,7 @@ function backupModal(){
 /* ---------- redeem codes ---------- */
 const SECRET_CODE = 'SMASH10';   // shown to the player at level 200 and on the Redeem Code page
 const CODES = {
-  [SECRET_CODE]: { amount: true },
-  LVLSKP: { skip: true },   // TEMPORARY for testing: jump to any level. Remove before release.   // pick a coin amount, up to SECRET_MAX, once a week, after level 200
+  [SECRET_CODE]: { amount: true },   // pick a coin amount, up to SECRET_MAX, once a week, after level 200
 };
 const SECRET_MAX = 100000;                       // most coins one use of SMASH10 can give
 const SMASH_TEST = false;                        // true = testing only: turns off the weekly timer, level 200 lock and 100k max
@@ -1886,29 +1885,6 @@ const secretUnlocked = () => S.codeRevealed || S.level + 1 >= SECRET_LEVEL;   //
 function fmtWait(ms){
   const h = Math.ceil(ms / 3600000), d = Math.floor(h / 24), r = h % 24;
   return d ? `${d} day${d > 1 ? 's' : ''}${r ? ` ${r} hour${r > 1 ? 's' : ''}` : ''}` : `${h} hour${h > 1 ? 's' : ''}`;
-}
-// TEMPORARY (LVLSKP): jump straight to a level for testing
-function skipModal(){
-  openModal('Level Skip', `<p>Skip to level:</p>
-    <input id="skipInput" type="number" inputmode="numeric" min="1" placeholder="${S.level + 1}" aria-label="Level number" style="width:100%;box-sizing:border-box;border:3px solid var(--panel-edge);border-radius:12px;padding:10px 12px;font:900 1.4rem var(--font-body);text-align:center;color:var(--text)">
-    <p id="skipMsg" style="color:#d9223a;font-weight:900;min-height:1.2em;margin:6px 0"></p>
-    <button class="btn btn-green" data-skip>Go!</button>`, el => {
-    const inp = el.querySelector('#skipInput'), msg = el.querySelector('#skipMsg');
-    const go = () => {
-      const n = Math.floor(+inp.value);
-      if (!n || n < 1){ msg.textContent = 'Enter a level number.'; tone(200, .15, .05, 'square'); return; }
-      S.level = n - 1;
-      const unlock = n >= SECRET_LEVEL && !S.codeRevealed;   // skipping to level 200+ unlocks the secret code
-      if (unlock) S.codeRevealed = true;
-      save();
-      tone(784, .12, .06, 'triangle'); setTimeout(() => tone(1319, .25, .06, 'triangle'), 120); confetti(40);
-      closeModal(); toast(`Skipped to level ${fmt(n)}`); goHome();
-      if (unlock) setTimeout(secretReveal, 600);
-    };
-    el.querySelector('[data-skip]').addEventListener('click', go);
-    inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
-    setTimeout(() => inp.focus(), 50);
-  });
 }
 function amountModal(){
   openModal('Add Coins', `<p>How many coins?</p>
@@ -1955,7 +1931,6 @@ function codeModal(){
         if (w){ msg.textContent = `Already used this week. Ready again in ${fmtWait(w)}.`; tone(200, .15, .05, 'square'); return; }
         amountModal(); return;
       }
-      if (c.skip){ skipModal(); return; }
       if (S.codes.includes(code)){ msg.textContent = 'You already used this code.'; return; }
       c.give(); S.codes.push(code); save(); refreshTop(); renderBoosters();
       tone(784, .12, .06, 'triangle'); setTimeout(() => tone(1319, .25, .06, 'triangle'), 120); confetti(50); buzz(40);
