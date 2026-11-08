@@ -2,8 +2,9 @@
   "name": "box-smash",
   "version": "1.0.0",
   "private": true,
-  "description": "Box Smash iOS app. The build installs the local BoxBoard plugin from the box-board folder.",
+  "description": "Box Smash iOS app. The build installs the local BoxBoard plugin from the box-board folder and the Capacitor local notifications plugin.",
   "dependencies": {
-    "box-board": "file:box-board"
+    "box-board": "file:box-board",
+    "@capacitor/local-notifications": "^5.0.0"
   }
 }

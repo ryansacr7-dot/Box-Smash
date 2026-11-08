@@ -532,7 +532,7 @@ const slotKey = n => n === 1 ? 'boxsmash.save.v2' : 'boxsmash.save.v2.s' + n;
 const DEFAULT = {
   level: 0, coins: 200, lives: 5, lifeTs: 0,
   boosters: { inf: 2, big: 2, wand: 3, bomb: 0 },
-  set: { music: true, sound: true, vib: true, boxVoice: true, boxPreset: 'classic', boxCustom: null },
+  set: { music: true, sound: true, vib: true, notif: true, boxVoice: true, boxPreset: 'classic', boxCustom: null },
   profile: { name: 'Player', avatar: 0, frame: 0, char: 0, face: 0, hat: 0, bg: 0 },
   owned: { avatars: [0, 1], frames: [0], chars: [0], faces: [0], hats: [0, 1], bgs: [0] },
   stats: { won: 0, firstTry: 0, streak: 0, best: 0 },
@@ -1766,33 +1766,15 @@ function livesModal(){
     });
   });
 }
-
-/* ---------- Ryonic sync: sends this game's progress to the Ryonic app ---------- */
-function ryonicCanSync(){ try { return !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()); } catch(e){ return false; } }
-function ryonicSend(stats){
-  var json = JSON.stringify(stats);
-  var b64 = btoa(unescape(encodeURIComponent(json))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-  var s = 'ryonic|' + b64, h = 2166136261;
-  for (var i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
-  var link = 'ryonic://sync?d=' + b64 + '&c=' + h.toString(16);
-  if (typeof window.__ryonicOpen === 'function') window.__ryonicOpen(link); else window.location.href = link;
-}
-function ryonicSync(){
-  save();
-  ryonicSend({ g:'box', v:1, t:Date.now(), name:(S.profile && S.profile.name) || '', cleared:S.level || 0, coins:S.coins || 0,
-    won:(S.stats && S.stats.won) || 0, firstTry:(S.stats && S.stats.firstTry) || 0, bestStreak:(S.stats && S.stats.best) || 0,
-    played:(S.level || 0) > 0 || ((S.stats && S.stats.won) || 0) > 0 });
-}
 function settingsModal(){
   const row = (k, label) => `<div class="set-row" style="display:flex;justify-content:space-between;align-items:center;background:#fff;border-radius:14px;padding:10px 12px;font-weight:900">${label}<button class="btn ${S.set[k] ? 'btn-green' : 'btn-red'}" style="font-size:1rem;padding:6px 16px" data-k="${k}">${S.set[k] ? 'On' : 'Off'}</button></div>`;
-  openModal('Settings', row('music', 'Music') + row('sound', 'Sound') + row('boxVoice', 'Box Voices') + row('vib', 'Vibration') +
-    `<button class="btn btn-blue" data-boxes style="font-size:1.1rem">Box Customization</button><button class="btn btn-gold" data-slots style="font-size:1.1rem">Save Profiles</button><button class="btn btn-gold" data-backup style="font-size:1.1rem">Backup &amp; Restore</button><button class="btn btn-blue" data-code style="font-size:1.1rem">Redeem Code</button>` + (ryonicCanSync() ? `<button class="btn btn-green" data-ryonic style="font-size:1.1rem">Sync to Ryonic</button>` : ``), el => {
+  openModal('Settings', row('music', 'Music') + row('sound', 'Sound') + row('boxVoice', 'Box Voices') + row('vib', 'Vibration') + (Notif() ? row('notif', 'Notifications') : '') +
+    `<button class="btn btn-blue" data-boxes style="font-size:1.1rem">Box Customization</button><button class="btn btn-gold" data-slots style="font-size:1.1rem">Save Profiles</button><button class="btn btn-gold" data-backup style="font-size:1.1rem">Backup &amp; Restore</button><button class="btn btn-blue" data-code style="font-size:1.1rem">Redeem Code</button>`, el => {
     el.querySelectorAll('[data-k]').forEach(b => b.addEventListener('click', () => { toggleSetting(b.dataset.k); settingsModal(); }));
     el.querySelector('[data-code]').addEventListener('click', () => { click(); codeModal(); });
     el.querySelector('[data-boxes]').addEventListener('click', () => { click(); closeModal(); openBoxPage(); });
     el.querySelector('[data-slots]').addEventListener('click', () => { click(); slotsModal(); });
     el.querySelector('[data-backup]').addEventListener('click', () => { click(); backupModal(); });
-    const ry = el.querySelector('[data-ryonic]'); if (ry) ry.addEventListener('click', () => { click(); ryonicSync(); });
   });
 }
 
@@ -1969,6 +1951,50 @@ function toggleSetting(k){
   S.set[k] = !S.set[k]; save();
   if (k === 'music') S.set.music ? (actx(), musicOn()) : musicOff();
   if (k === 'vib') buzz(30); click(); syncGearMenu();
+  if (k === 'notif' && S.set.notif) notifAllowed(true).then(ok => { if (!ok) toast('Allow notifications in iPhone Settings → Box Smash'); });
+}
+/* ---------- phone notifications ----------
+   Local only: the phone schedules them itself. Nothing is sent to a server.
+   They are (re)scheduled every time the app goes to the background, and cleared when it comes back. */
+function Notif(){ return (GCNative() && window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.LocalNotifications) || null; }
+const NOTE = { lives: 101, daily: 102, smash: 103, miss: 104 };
+async function notifAllowed(ask){
+  const N = Notif(); if (!N) return false;
+  try {
+    let p = await N.checkPermissions();
+    if (p.display !== 'granted' && p.display !== 'denied'){ if (!ask) return false; p = await N.requestPermissions(); }
+    return p.display === 'granted';
+  } catch(e){ return false; }
+}
+async function clearNotes(){
+  const N = Notif(); if (!N) return;
+  try { await N.cancel({ notifications: Object.values(NOTE).map(id => ({ id })) }); } catch(e){}
+}
+async function scheduleNotes(){
+  const N = Notif(); if (!N) return;
+  await clearNotes();
+  if (!S.set.notif || !(await notifAllowed(false))) return;
+  const now = Date.now(), list = [];
+  tickLives();
+  if (S.lives < MAX_LIVES)
+    list.push({ id: NOTE.lives, title: 'Lives are full! \u2764\uFE0F', body: 'All 5 lives are back. Time to smash some boxes!', at: S.lifeTs + (MAX_LIVES - S.lives) * LIFE_MS });
+  const day = new Date(); if (!dailyReady()) day.setDate(day.getDate() + 1);
+  day.setHours(12, 0, 0, 0); if (day.getTime() < now + 60000) day.setDate(day.getDate() + 1);
+  list.push({ id: NOTE.daily, title: 'Daily reward ready \u{1F381}', body: 'Your free daily reward is waiting in Box Smash.', at: day.getTime() });
+  if (secretUnlocked() && smashWait() > 0)
+    list.push({ id: NOTE.smash, title: 'SMASH10 is ready again \u{1F4B0}', body: 'Your weekly SMASH10 coins can be claimed again.', at: now + smashWait() });
+  list.push({ id: NOTE.miss, title: 'The boxes miss you \u{1F602}', body: "They've been laughing since you left. Come show them who's boss!", at: now + 3 * 86400000 });
+  try { await N.schedule({ notifications: list.map(n => ({ id: n.id, title: n.title, body: n.body, schedule: { at: new Date(n.at), allowWhileIdle: true } })) }); } catch(e){}
+}
+document.addEventListener('visibilitychange', () => { document.hidden ? scheduleNotes() : clearNotes(); });
+// asked once, after the player has beaten a few levels, with our own friendly screen first
+function notifAsk(){
+  S.notifAsked = true; save();
+  openModal('Stay in the Loop? \u{1F514}', `<p>Get a heads-up when your lives are full and your daily reward is ready.</p>
+    <button class="btn btn-green" data-yes>Yes please!</button><button class="btn btn-red" data-no style="font-size:1rem">Not now</button>`, el => {
+    el.querySelector('[data-yes]').addEventListener('click', () => { click(); closeModal(); S.set.notif = true; save(); notifAllowed(true); });
+    el.querySelector('[data-no]').addEventListener('click', () => { click(); closeModal(); });
+  });
 }
 $('homeGear').addEventListener('click', () => { click(); settingsModal(); });
 /* ---------- box customization page ---------- */
@@ -2155,6 +2181,7 @@ function showWin(){
 $('continueBtn').addEventListener('click', () => {
   click(); goHome();
   if (S.level + 1 >= SECRET_LEVEL && !S.codeRevealed){ S.codeRevealed = true; save(); setTimeout(secretReveal, 300); }   // arrived at level 200
+  else if (S.level >= 3 && !S.notifAsked && Notif()) setTimeout(notifAsk, 500);
 });
 // level 200 reward: shows the player the redeem code
 const SECRET_LEVEL = 200;
