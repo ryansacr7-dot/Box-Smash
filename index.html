@@ -2016,6 +2016,13 @@ async function scheduleNotes(){
   try { await N.schedule({ notifications: list.map(n => ({ id: n.id, title: n.title, body: n.body, schedule: { at: new Date(n.at), allowWhileIdle: true } })) }); } catch(e){}
 }
 document.addEventListener('visibilitychange', () => { document.hidden ? scheduleNotes() : clearNotes(); });
+// players already past level 4 get asked on the home screen too (once), as soon as nothing else is open
+function askOnHome(tries){
+  if (tries > 20 || S.notifAsked || !Notif()) return;
+  if (S.level >= 3 && mode === 'home' && $('modal').hidden) notifAsk();
+  else setTimeout(() => askOnHome(tries + 1), 2500);
+}
+setTimeout(() => askOnHome(0), 3000);
 // asked once, after the player has beaten a few levels, with our own friendly screen first
 function notifAsk(){
   S.notifAsked = true; save();
