@@ -61,10 +61,72 @@ jobs:
           JS
           ls -la . fonts
 
+      # Ryonic Link: a tiny native plugin that lets all Ryonic Inc. apps share progress live
+      # through the App Group "group.com.ryonic.shared" (a private storage box only your apps can open).
+      - name: Create Ryonic Link plugin
+        run: |
+          set -e
+          mkdir -p ryonic-link
+          cat > ryonic-link/package.json <<'EOF'
+          {"name":"ryonic-link","version":"1.0.0","main":"index.js","license":"MIT","capacitor":{"ios":{"src":"."}}}
+          EOF
+          echo "module.exports = {};" > ryonic-link/index.js
+          cat > ryonic-link/RyonicLink.podspec <<'EOF'
+          Pod::Spec.new do |s|
+            s.name = 'RyonicLink'
+            s.version = '1.0.0'
+            s.summary = 'Shares game progress between Ryonic Inc. apps through an App Group.'
+            s.license = 'MIT'
+            s.homepage = 'https://github.com/ryansacr7-dot/Ryonic'
+            s.author = 'Ryan'
+            s.source = { :git => 'https://github.com/ryansacr7-dot/Ryonic.git', :tag => s.version.to_s }
+            s.source_files = '*.{swift,h,m}'
+            s.ios.deployment_target = '13.0'
+            s.dependency 'Capacitor'
+            s.swift_version = '5.1'
+          end
+          EOF
+          cat > ryonic-link/RyonicLinkPlugin.m <<'EOF'
+          #import <Foundation/Foundation.h>
+          #import <Capacitor/Capacitor.h>
+          CAP_PLUGIN(RyonicLinkPlugin, "RyonicLink",
+              CAP_PLUGIN_METHOD(write, CAPPluginReturnPromise);
+              CAP_PLUGIN_METHOD(read, CAPPluginReturnPromise);
+          )
+          EOF
+          cat > ryonic-link/RyonicLinkPlugin.swift <<'EOF'
+          import Foundation
+          import Capacitor
+
+          /// write: saves this game's stats (a JSON string) into the shared App Group.
+          /// read:  returns the stats every Ryonic Inc. game has saved there.
+          @objc(RyonicLinkPlugin)
+          public class RyonicLinkPlugin: CAPPlugin {
+              private let shared = UserDefaults(suiteName: "group.com.ryonic.shared")
+
+              @objc func write(_ call: CAPPluginCall) {
+                  guard let key = call.getString("key"), let value = call.getString("value") else { call.reject("key and value are needed"); return }
+                  guard let box = shared else { call.reject("App Group not available"); return }
+                  box.set(value, forKey: "ryonic." + key)
+                  call.resolve()
+              }
+
+              @objc func read(_ call: CAPPluginCall) {
+                  guard let box = shared else { call.reject("App Group not available"); return }
+                  let keys = call.getArray("keys", String.self) ?? []
+                  var values: [String: Any] = [:]
+                  for key in keys { if let v = box.string(forKey: "ryonic." + key) { values[key] = v } }
+                  call.resolve(["values": values])
+              }
+          }
+          EOF
+          ls -la ryonic-link
+
       - name: Install Mobile Environment Wrapper
         run: |
           set -e
           npm init -y
+          npm install ./ryonic-link
           npm install @capacitor/core@5 @capacitor/cli@5 @capacitor/ios@5
           if [ ! -f capacitor.config.json ] && [ ! -f capacitor.config.ts ]; then
             npx cap init "Box Smash" "com.ryan.boxsmash" --web-dir=www
@@ -146,6 +208,18 @@ jobs:
           done
           echo "Build number: ${{ github.run_number }}"
 
+      # Lets Ryonic open this game directly (Play button in Ryonic)
+      - name: Register URL scheme for Ryonic
+        run: |
+          set -e
+          PLIST="ios/App/App/Info.plist"
+          /usr/libexec/PlistBuddy -c "Delete :CFBundleURLTypes" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0 dict" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLName string boxsmash" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string boxsmash" "$PLIST"
+
       - name: Write App Store Connect API Key
         env:
           API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
@@ -220,6 +294,29 @@ jobs:
                      CODE_SIGN_IDENTITY="" \
                      CODE_SIGN_ENTITLEMENTS="" \
                      archive
+
+      # The archive above is unsigned, so give it a temporary signature that carries the App Group
+      # entitlement; the export step re-signs it for the App Store.
+      - name: Add App Group entitlement
+        run: |
+          set -e
+          APP=$(find "$RUNNER_TEMP" -maxdepth 4 -path "*.xcarchive/Products/Applications/*.app" -type d | head -1)
+          echo "App: $APP"
+          cat > "$RUNNER_TEMP/ryonic.entitlements" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>com.apple.security.application-groups</key>
+              <array>
+                  <string>group.com.ryonic.shared</string>
+              </array>
+          </dict>
+          </plist>
+          PLIST
+          codesign --force --sign - --timestamp=none --entitlements "$RUNNER_TEMP/ryonic.entitlements" "$APP"
+          echo "--- entitlements now in the app ---"
+          codesign -d --entitlements - "$APP" 2>/dev/null || codesign -d --entitlements :- "$APP"
 
       - name: Export IPA (signed for the App Store)
         env:
