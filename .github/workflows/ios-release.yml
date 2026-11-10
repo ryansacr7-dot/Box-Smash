@@ -197,7 +197,7 @@ jobs:
           PLIST="ios/App/App/Info.plist"
           pb () { /usr/libexec/PlistBuddy -c "Set :$1 $3" "$PLIST" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :$1 $2 $3" "$PLIST"; }
           pb CFBundleShortVersionString string 1.0.0
-          BUILD=$(( ${{ github.run_number }} + 100 ))
+          BUILD=$(( ${{ github.run_number }} + 10 ))
           pb CFBundleVersion string $BUILD
           pb ITSAppUsesNonExemptEncryption bool false
           pb UIStatusBarHidden bool true
