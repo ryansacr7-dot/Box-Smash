@@ -225,7 +225,7 @@ button:focus-visible{outline:3px solid #fff;outline-offset:2px}
 .cos-cell .avatar{position:relative}
 .cos-locked svg:first-child{filter:grayscale(.3) brightness(.95);opacity:.85}
 .av-grid .avatar svg{width:42px;height:42px}
-.cos-lock{position:absolute;right:-6px;bottom:-6px;width:24px;height:24px}
+.cos-lock{position:absolute;right:-5px;top:-5px;width:24px;height:24px}
 .cos-lock svg{width:24px;height:24px}
 .cos-price{display:flex;align-items:center;gap:3px;font-weight:900;font-size:.68rem;color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums}
 .name-row{display:flex;gap:8px;align-items:center}
@@ -532,7 +532,7 @@ const slotKey = n => n === 1 ? 'boxsmash.save.v2' : 'boxsmash.save.v2.s' + n;
 const DEFAULT = {
   level: 0, coins: 200, lives: 5, lifeTs: 0,
   boosters: { inf: 2, big: 2, wand: 3, bomb: 0 },
-  set: { music: true, sound: true, vib: true, boxVoice: true, boxPreset: 'classic', boxCustom: null },
+  set: { music: true, sound: true, vib: true, notif: true, boxVoice: true, boxPreset: 'classic', boxCustom: null },
   profile: { name: 'Player', avatar: 0, frame: 0, char: 0, face: 0, hat: 0, bg: 0 },
   owned: { avatars: [0, 1], frames: [0], chars: [0], faces: [0], hats: [0, 1], bgs: [0] },
   stats: { won: 0, firstTry: 0, streak: 0, best: 0 },
@@ -1809,7 +1809,7 @@ ryonicStream(bsStats);
 ryonicShare(bsStats);
 function settingsModal(){
   const row = (k, label) => `<div class="set-row" style="display:flex;justify-content:space-between;align-items:center;background:#fff;border-radius:14px;padding:10px 12px;font-weight:900">${label}<button class="btn ${S.set[k] ? 'btn-green' : 'btn-red'}" style="font-size:1rem;padding:6px 16px" data-k="${k}">${S.set[k] ? 'On' : 'Off'}</button></div>`;
-  openModal('Settings', row('music', 'Music') + row('sound', 'Sound') + row('boxVoice', 'Box Voices') + row('vib', 'Vibration') +
+  openModal('Settings', row('music', 'Music') + row('sound', 'Sound') + row('boxVoice', 'Box Voices') + row('vib', 'Vibration') + (Notif() ? row('notif', 'Notifications') : '') +
     `<button class="btn btn-blue" data-boxes style="font-size:1.1rem">Box Customization</button><button class="btn btn-gold" data-slots style="font-size:1.1rem">Save Profiles</button><button class="btn btn-gold" data-backup style="font-size:1.1rem">Backup &amp; Restore</button><button class="btn btn-blue" data-code style="font-size:1.1rem">Redeem Code</button>` + (ryonicCanSync() ? `<button class="btn btn-blue" data-ryonic style="font-size:1.1rem">Sync to Ryonic</button>` : ``), el => {
     el.querySelectorAll('[data-k]').forEach(b => b.addEventListener('click', () => { toggleSetting(b.dataset.k); settingsModal(); }));
     el.querySelector('[data-code]').addEventListener('click', () => { click(); codeModal(); });
@@ -1993,6 +1993,57 @@ function toggleSetting(k){
   S.set[k] = !S.set[k]; save();
   if (k === 'music') S.set.music ? (actx(), musicOn()) : musicOff();
   if (k === 'vib') buzz(30); click(); syncGearMenu();
+  if (k === 'notif' && S.set.notif) notifAllowed(true).then(ok => { if (!ok) toast('Allow notifications in iPhone Settings → Box Smash'); });
+}
+/* ---------- phone notifications ----------
+   Local only: the phone schedules them itself. Nothing is sent to a server.
+   They are (re)scheduled every time the app goes to the background, and cleared when it comes back. */
+function Notif(){ return (GCNative() && window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.LocalNotifications) || null; }
+const NOTE = { lives: 101, daily: 102, smash: 103, miss: 104 };
+async function notifAllowed(ask){
+  const N = Notif(); if (!N) return false;
+  try {
+    let p = await N.checkPermissions();
+    if (p.display !== 'granted' && p.display !== 'denied'){ if (!ask) return false; p = await N.requestPermissions(); }
+    return p.display === 'granted';
+  } catch(e){ return false; }
+}
+async function clearNotes(){
+  const N = Notif(); if (!N) return;
+  try { await N.cancel({ notifications: Object.values(NOTE).map(id => ({ id })) }); } catch(e){}
+}
+async function scheduleNotes(){
+  const N = Notif(); if (!N) return;
+  await clearNotes();
+  if (!S.set.notif || !(await notifAllowed(false))) return;
+  const now = Date.now(), list = [];
+  tickLives();
+  if (S.lives < MAX_LIVES)
+    list.push({ id: NOTE.lives, title: 'Lives are full! \u2764\uFE0F', body: 'All 5 lives are back. Time to smash some boxes!', at: S.lifeTs + (MAX_LIVES - S.lives) * LIFE_MS });
+  const day = new Date(); if (!dailyReady()) day.setDate(day.getDate() + 1);
+  day.setHours(12, 0, 0, 0); if (day.getTime() < now + 60000) day.setDate(day.getDate() + 1);
+  list.push({ id: NOTE.daily, title: 'Daily reward ready \u{1F381}', body: 'Your free daily reward is waiting in Box Smash.', at: day.getTime() });
+  if (secretUnlocked() && smashWait() > 0)
+    list.push({ id: NOTE.smash, title: 'SMASH10 is ready again \u{1F4B0}', body: 'Your weekly SMASH10 coins can be claimed again.', at: now + smashWait() });
+  list.push({ id: NOTE.miss, title: 'The boxes miss you \u{1F602}', body: "They've been laughing since you left. Come show them who's boss!", at: now + 3 * 86400000 });
+  try { await N.schedule({ notifications: list.map(n => ({ id: n.id, title: n.title, body: n.body, schedule: { at: new Date(n.at), allowWhileIdle: true } })) }); } catch(e){}
+}
+document.addEventListener('visibilitychange', () => { document.hidden ? scheduleNotes() : clearNotes(); });
+// players already past level 4 get asked on the home screen too (once), as soon as nothing else is open
+function askOnHome(tries){
+  if (tries > 20 || S.notifAsked || !Notif()) return;
+  if (S.level >= 3 && mode === 'home' && $('modal').hidden) notifAsk();
+  else setTimeout(() => askOnHome(tries + 1), 2500);
+}
+setTimeout(() => askOnHome(0), 3000);
+// asked once, after the player has beaten a few levels, with our own friendly screen first
+function notifAsk(){
+  S.notifAsked = true; save();
+  openModal('Stay in the Loop? \u{1F514}', `<p>Get a heads-up when your lives are full and your daily reward is ready.</p>
+    <button class="btn btn-green" data-yes>Yes please!</button><button class="btn btn-red" data-no style="font-size:1rem">Not now</button>`, el => {
+    el.querySelector('[data-yes]').addEventListener('click', () => { click(); closeModal(); S.set.notif = true; save(); notifAllowed(true); });
+    el.querySelector('[data-no]').addEventListener('click', () => { click(); closeModal(); });
+  });
 }
 $('homeGear').addEventListener('click', () => { click(); settingsModal(); });
 /* ---------- box customization page ---------- */
@@ -2055,6 +2106,7 @@ const TIPS = [
   'Mega Shot balls crash straight through tall walls.',
   'The Zap Wand clears a box and its neighbours.',
   'Every piece has to leave the platform to win.',
+  'Settings \u2192 Sync to Ryonic sends your levels, wins and coins to the Ryonic app for its quests.',
 ];
 $('levelBtn').addEventListener('click', () => {
   click(); tickLives();
@@ -2179,6 +2231,7 @@ function showWin(){
 $('continueBtn').addEventListener('click', () => {
   click(); goHome();
   if (S.level + 1 >= SECRET_LEVEL && !S.codeRevealed){ S.codeRevealed = true; save(); setTimeout(secretReveal, 300); }   // arrived at level 200
+  else if (S.level >= 3 && !S.notifAsked && Notif()) setTimeout(notifAsk, 500);
 });
 // level 200 reward: shows the player the redeem code
 const SECRET_LEVEL = 200;
@@ -2278,12 +2331,24 @@ function unpackLook(n){
   if (!n || Math.floor(n / 16 ** 6) !== LOOK_TAG) return null;
   const l = {}; LOOK_PARTS.forEach((k, i) => { l[k] = Math.floor(n / 16 ** i) % 16; }); return lookOf(l);
 }
+// remembers what happened to the last score we sent, shown under the leaderboard so problems are visible
+let lastSend = null;
 function gcSubmit(){
-  const P = GCPlugin(); if (!P || !gcPlayer) return;
-  const old = () => { try { P.submitScore({ leaderboardID: GC_BOARD, totalScoreAmount: S.level }).catch(() => {}); } catch(e){} };
+  const P = GCPlugin(); if (!P || !gcPlayer) return Promise.resolve();
+  // score = the level you're on, the same number your profile shows
+  const score = S.level + 1, note = (ok, how, msg) => { lastSend = { score, ok, how, msg: msg || '', at: Date.now() }; if (!$('board').hidden) renderBoard(false); };
+  const old = e1 => {
+    try {
+      return P.submitScore({ leaderboardID: GC_BOARD, totalScoreAmount: score })
+        .then(() => note(true, 'basic', e1 ? 'BoxBoard: ' + e1 : ''))
+        .catch(e2 => note(false, 'basic', (e1 ? 'BoxBoard: ' + e1 + ' / ' : '') + String(e2 && e2.message || e2)));
+    } catch(e){ note(false, 'basic', String(e)); return Promise.resolve(); }
+  };
   const B = BoxBoard();
-  if (!B){ old(); return; }
-  B.submit({ leaderboardID: GC_BOARD, score: S.level, context: packLook(S.profile) }).catch(old);
+  if (!B) return old('no plugin');
+  return B.submit({ leaderboardID: GC_BOARD, score, context: packLook(S.profile) })
+    .then(() => note(true, 'BoxBoard'))
+    .catch(e => old(String(e && e.message || e)));
 }
 function gcShowBoard(){
   const P = GCPlugin(); if (!P) return;
@@ -2291,8 +2356,15 @@ function gcShowBoard(){
   P.showLeaderboard({ leaderboardID: GC_BOARD }).catch(() => toast('Game Center is not available right now'));
 }
 let boardScope = 'global', boardData = { global: null, friends: null }, boardBusy = false;
+let boardSentAt = 0;
 function loadBoard(force){
   const B = BoxBoard(), scope = boardScope, d = boardData[scope];
+  // every time the leaderboard is opened, send the current level again first (fixes a send that failed after a win)
+  if (gcPlayer && Date.now() - boardSentAt > 20000){
+    boardSentAt = Date.now();
+    gcSubmit().then(() => setTimeout(() => { boardData[scope] = null; loadBoard(true); }, 1200));
+    return;
+  }
   if (!gcPlayer || boardBusy || (!force && d && !d.err && Date.now() - d.at < 30000)) return;
   if (!B){ boardData[scope] = { at: Date.now(), err: true, msg: 'no plugin' }; if (!$('board').hidden) renderBoard(false); return; }
   boardBusy = true;
@@ -2309,10 +2381,10 @@ function boardRow(e){
   const look = e.me ? S.profile : (unpackLook(e.context) || { avatar: 1 });
   const top = e.rank <= 3 ? ` style="background:none;font-size:1.6rem"` : '';
   return `<div class="lb-row${e.me ? ' me' : ''}"><span class="rank"${top}>${e.rank <= 3 ? ['\u{1F947}', '\u{1F948}', '\u{1F949}'][e.rank - 1] : fmt(e.rank)}</span>${avatarHTML(look)}
-    <span class="lb-name">${escapeHtml(e.name || 'Player')}${e.me ? ' <small>(you)</small>' : ''}</span><span class="lb-lvl"><small>Best</small>${fmt(e.score)}</span></div>`;
+    <span class="lb-name">${escapeHtml(e.name || 'Player')}${e.me ? ' <small>(you)</small>' : ''}</span><span class="lb-lvl"><small>Level</small>${fmt(e.score)}</span></div>`;
 }
 function renderBoard(load = true){
-  const me = `<div class="lb-row me"><span class="rank">\u2605</span>${avatarHTML(S.profile)}<span class="lb-name">${escapeHtml(S.profile.name)}</span><span class="lb-lvl"><small>Best</small>${S.level}</span></div>`;
+  const me = `<div class="lb-row me"><span class="rank">\u2605</span>${avatarHTML(S.profile)}<span class="lb-name">${escapeHtml(S.profile.name)}</span><span class="lb-lvl"><small>Level</small>${S.level + 1}</span></div>`;
   let html;
   if (!GCNative()){
     html = `<div class="section-title">Highest Level</div>${me}<p class="note">Play the Box Smash app on iPhone or iPad to see players from around the world here.</p>`;
@@ -2333,6 +2405,7 @@ function renderBoard(load = true){
     html = `<div class="tabs" role="tablist"><button class="tab" role="tab" data-ls="global" aria-selected="${boardScope === 'global'}">Everyone</button><button class="tab" role="tab" data-ls="friends" aria-selected="${boardScope === 'friends'}">Friends</button></div>
       <div class="lb-list">${list}</div>
       ${d && !d.err && d.total ? `<p class="note">${fmt(d.total)} player${d.total === 1 ? '' : 's'} \u00b7 signed in as ${escapeHtml(gcPlayer)}</p>` : ''}
+      ${lastSend ? `<p class="note" style="font-size:.78rem;opacity:.85">${lastSend.ok ? '\u2705 Sent' : '\u274C Couldn\u2019t send'} best level ${fmt(lastSend.score)} to Game Center (${lastSend.how})${lastSend.msg ? `<br>${escapeHtml(lastSend.msg)}` : ''}</p>` : ''}
       <button class="btn btn-gold" id="gcOpen" style="font-size:1rem">Open in Game Center</button>`;
     if (load) loadBoard();
   }
